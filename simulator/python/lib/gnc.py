@@ -13,6 +13,30 @@ import math
 
 #------------------------------------------------------------------------------
 
+def deg2rad(angleInDegrees): # Might need to check if input is float. See L1euler.m!
+    """Convert angles from degrees to radians."""
+    angleInRad = (math.pi/180) * angleInDegrees
+
+    return angleInRad
+
+#------------------------------------------------------------------------------
+
+def rad2deg(angleInRad): # Might need to check if input is float. See L1euler.m!
+    """Convert angles from radians to degrees."""
+    angleInDegrees = (180/math.pi) * angleInRad
+
+    return angleInDegrees
+
+#------------------------------------------------------------------------------
+
+def ssa(angle): # Might need to add support for vectors. See L1euler.m!
+    """Smallest signed angle. Maps an angle in rad to the interval [-pi,pi)."""
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
+
+    return angle
+
+#------------------------------------------------------------------------------
+
 def Rzyx(phi,theta,psi):
     """
     R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)

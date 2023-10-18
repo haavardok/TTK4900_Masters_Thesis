@@ -1,0 +1,19 @@
+--------NumPy operations--------
+
+np.array
+    0D_array = np.array(0)                          (scalar)
+    1D_array = np.array([1,2,3])                    (vector)
+    2D_array = np.array([[1,2,3],[4,5,6]])          (matrix)
+    3D_array = np.array([[1,2,3],[4,5,6],[7,8,9]])  (matrix)
+
+np.multiply and *
+    Basic element-wise multiplication. Used for 1D arrays.
+
+np.dot
+    Dot product of vectors. If dim > 1 be sure that matrix multiplication rules are satisfied. Not recommended for >= 1D arrays.
+
+np.matmul and @
+    Matrix multiplication. 
+
+Summary
+    * == np.multiply != np.dot != np.matmul == @

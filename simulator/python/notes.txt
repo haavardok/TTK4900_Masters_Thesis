@@ -17,3 +17,7 @@ np.matmul and @
 
 Summary
     * == np.multiply != np.dot != np.matmul == @
+
+
+--------CasADi--------
+Add C:\Users\<username>\AppData\Local\Programs\Python\Python311\Lib\site-packages\casadi to PATH for solvers in CasADi to work.

@@ -19,26 +19,84 @@ Author:
     Håvard Olai Kopperstad
 """
 
+#------------------------------------------------------------------------------
+
+def J(psi):
+    '''
+    Returns the Euler angle rotation matrix J(psi) in SO(3) using the zyx convention
+    for 3-DOF model for surface vessels. Fossen (2.60).
+
+        Parameters:
+            psi (float): An heading angle in radians
+
+        Returns:
+            J_psi (ndarray): Rotation matrix in SO(3)
+
+    '''
+    
+    cpsi = math.cos(psi)
+    spsi = math.sin(psi)
+    
+    J_psi = np.array([
+        [ cpsi, -spsi, 0 ],
+        [ spsi,  cpsi, 0 ],
+        [  0,     0,   1 ] ])
+
+    return J_psi
+
+def T(alpha):
+    '''
+    Returns the thrust configuration matrix dependent on the angles alpha. 
+    Assuming two azimuth thrusters in the aft, with one tunnel thruster in
+    the front with positions and angles given from the vessel model.
+    Fossen ch. 11.2.1.
+
+        Parameters:
+            alpha (list): Azimuth thruster angles in radians
+
+        Returns:
+            T_thr (ndarray): Thruster configuration matrix
+    '''
+    
+    lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m) -------------------------------CONSTANTS??-------------------------------------------
+    lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
+    lx3 = 35;                                           # bow tunnel thruster position (m)
+
+    calpha1 = math.cos(alpha[0])
+    salpha1 = math.sin(alpha[0])
+    calpha2 = math.cos(alpha[1])
+    salpha2 = math.sin(alpha[1])
+    
+    T_thr = np.array([
+        [          calpha1,                calpha2,           0 ],
+        [          salpha1,                salpha2,           1 ],
+        [  lx1*salpha1-ly1*calpha1, lx2*salpha2-ly2*calpha2, lx3 ] ])
+
+    return T_thr
+
+#------------------------------------------------------------------------------
 
 import casadi as cd
 import numpy as np
 import math
 
 # User inputs
-T = 300                                             # time horizon (s)
+T_hor = 300                                             # time horizon (s)
 N = 30                                              # no. time steps
+h = 0.1                                             # sampling time (s)
 
 # Initial states
-eta_0 = [150, -325, -math.pi]                       # initial vessel pose
-nu_0 = [0, 0, 0]                                    # initial vessel velocity
-f_0 = [0, 0, 0]                                     # initial thruster force (kN)
-alpha_0 = [0, 0, math.pi/2]                         # initial thruster angles (rad)
+eta_0   = np.array([150, -325, -math.pi])           # initial vessel pose
+nu_0    = np.array([0, 0, 0])                       # initial vessel velocity
+f_0     = np.array([0, 0, 0])                       # initial thruster force (kN)
+alpha_0 = np.array([0, 0, math.pi/2])               # initial thruster angles (rad)
+x       = np.concatenate((eta_0, nu_0, f_0, alpha_0)) # concatenating states into signle vector -------------------------------CHECK THIS-------------------------------------------
 
 # Vessel parameters
 L = 76.2                                            # vessel length (m)
 g = 9.8                                             # gravitational acceleration (m/s^2)
 m = 6000e3                                          # vessel mass (kg)
-lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m)
+lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m) -------------------------------CONSTANTS??-------------------------------------------
 lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
 lx3 = 35;  ly3 = 0                                  # bow tunnel thruster position (m)
 alpha3 = math.pi/2                                  # bow tunnel thruster angle (rad)
@@ -71,7 +129,6 @@ W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-6                                      # small constant to avoid division by 0
 rho = 1                                             # thruster weighting of maneuverability
 
-
 # Define symbolic variables
 eta = cd.MX.sym('eta', 3)
 eta_d = cd.MX.sym('eta_d', 3)
@@ -79,37 +136,67 @@ nu = cd.MX.sym('nu', 3)
 f = cd.MX.sym('f', 3)
 alpha = cd.MX.sym('alpha', 2)
 
-# # Define the cost function
-# obj_det = cd.det(T(alpha)@cd.inv(W)@T(alpha).T)
-# obj = (cd.mtimes((eta-eta_d).T, Q_eta, (eta-eta_d)) + 
-#        cd.mtimes(nu.T, Q_nu, nu) + 
-#        cd.mtimes(f.T, R_f, f) + 
-#        rho / (epsilon + obj_det))
+# Allocate empty table for simulation data
+simData = np.empty((N+1,1+np.size(x)), dtype=float)
+simData[:] = np.nan
 
-# # Define the dynamics
-# eta_dot = cd.mtimes(J_psi, nu)
-# nu_dot = cd.mtimes(cd.inv(M), cd.mtimes(R_psi, f) - cd.mtimes(D, nu))
-# constraints = [
-#     cd.mtimes(A_s, cd.mtimes(R_psi, x_i_b) + cd.vertcat(eta[0], eta[1])) <= 0,
-#     f_min <= f,
-#     f <= f_max,
-#     alpha_min <= alpha,
-#     alpha <= alpha_max,
-#     cd.fabs(alpha_dot) <= alpha_dot_max
-# ]
+################################################
+# MAIN LOOP
+################################################
 
-# # Formulate the optimization problem
-# opti = cd.Opti()
-# opti.minimize(cd.integral(obj, 0, T))
-# opti.subject_to(cd.vertcat(eta_dot, nu_dot) == cd.vertcat(nu, nu_dot))
-# opti.subject_to(constraints)
+eta_d = cd.vertcat(0,0,0) #------------------------------MIGHT MOVE THIS TO USER INPUTS-------------------------------------------
 
-# # Choose solver
-# opts = {'ipopt.print_level': 0, 'print_time': 0}
-# solver_opts = {'ipopt': opts}
-# solver = opti.solver('ipopt', solver_opts)
+for i in range(0,1):
 
-# # Solve the OCP
-# sol = solver(x0=opti.x0())
+    t = i * h                                       # current simulation time step, t
 
-print(eta)
+    # Measurements
+    eta   = x[0:3]
+    psi   = x[2]                                    # heading angle (rad)
+    nu    = x[3:6]
+    f     = x[6:9]
+    alpha = x[9:11]                                 # azimuth thruster angles (rad)
+
+    # Define the cost function
+    obj_det = cd.det(T(alpha)@cd.inv(W)@T(alpha).T)
+    # obj = (cd.mtimes((eta-eta_d).T, Q_eta, (eta-eta_d)) + #---------------------MIGHT NEED TO RETHINK IF THIS SHOULD BE SYMBOLIC--------------------------
+    #        cd.mtimes(nu.T, Q_nu, nu) + 
+    #        cd.mtimes(f.T, R_f, f) + 
+    #        rho / (epsilon + obj_det))
+    obj = (cd.mtimes((eta-eta_d).T, Q_eta, (eta-eta_d)) + 
+           cd.mtimes(nu.T, Q_nu, nu) + 
+           cd.mtimes(f.T, R_f, f) + 
+           rho / (epsilon + obj_det))
+
+    # # Define the dynamics
+    # eta_dot = cd.mtimes(J_psi, nu)
+    # nu_dot = cd.mtimes(cd.inv(M), cd.mtimes(R_psi, f) - cd.mtimes(D, nu))
+    # constraints = [
+    #     cd.mtimes(A_s, cd.mtimes(R_psi, x_i_b) + cd.vertcat(eta[0], eta[1])) <= 0,
+    #     f_min <= f,
+    #     f <= f_max,
+    #     alpha_min <= alpha,
+    #     alpha <= alpha_max,
+    #     cd.fabs(alpha_dot) <= alpha_dot_max
+    # ]
+
+    # # Formulate the optimization problem
+    # opti = cd.Opti()
+    # opti.minimize(cd.integral(obj, 0, T))
+    # opti.subject_to(cd.vertcat(eta_dot, nu_dot) == cd.vertcat(nu, nu_dot))
+    # opti.subject_to(constraints)
+
+    # # Choose solver
+    # opts = {'ipopt.print_level': 0, 'print_time': 0}
+    # solver_opts = {'ipopt': opts}
+    # solver = opti.solver('ipopt', solver_opts)
+
+    # # Solve the OCP
+    # sol = solver(x0=opti.x0())
+    
+    # Save loop iteration data
+    simData[i] = np.append(x,t)
+
+
+
+print(obj)

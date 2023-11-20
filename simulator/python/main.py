@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # Defining functions
 #######################################################################
 
-def J(psi):
+def J_rot(psi):
     '''
     Returns the Euler angle rotation matrix J(psi) in SO(3) using the zyx convention
     for 3-DOF model for surface vessels. Fossen (2.60).
@@ -78,10 +78,11 @@ alpha3 = math.pi/2                                  # bow tunnel thruster angle 
 f1_min = -1/30 * m*g; f1_max = 1/30 * m*g               # azimuth thruster 1 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f2_min = -1/30 * m*g; f2_max = 1/30 * m*g               # azimuth thruster 2 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f3_min = -1/60 * m*g; f3_max = 1/60 * m*g               # bow tunnel thruster force saturation (kN) ------------------------------CHECK THIS-------------------------------------------
-alpha1_min = -170*math.pi/180; alpha1_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (deg)
-alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (deg)
+alpha1_min = -170*math.pi/180; alpha1_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
+alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha3 = math.pi/2                                  # bow tunnel thruster constant angle (rad)
-alpha_dot_max = (360*math.pi/180)/30                              # azimuth thruster max turnaround time (deg/s) ------------------------------CHECK THIS-------------------------------------------
+alpha1_dot_max = (360*math.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
+alpha2_dot_max = (360*math.pi/180)/30
 
 # Weighting matrices
 Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for position and Euler angle vector eta ---------------------CHECK THESE THREE----------------------
@@ -104,18 +105,6 @@ D_bis = np.array([                                  # non-dimensional dampening 
 
 M_vessel = m * N_mtrx @ M_bis @ N_mtrx                     # vessel mass matrix (kg)
 D_vessel = m * math.sqrt(g/L) * N_mtrx @ D_bis @ N_mtrx    # vessel dampening matrix (kg)
-
-
-# f_min = np.array([f1_min, f2_min, f3_min])
-# f_max = np.array([f1_max, f2_max, f3_max])
-
-# alpha_min_values = np.array([alpha1_min, alpha2_min])
-# alpha_max_values = np.array([alpha1_max, alpha2_max])
-# alpha_min = ca.MX(alpha_min_values)
-# alpha_max = ca.MX(alpha_max_values)
-
-# alpha_dot_max = ca.MX((360*math.pi/180)/30)
-# alpha_dot_magnitude = ca.norm_2(alpha_dot)
 
 
 #######################################################################
@@ -170,10 +159,10 @@ y   = ca.SX.sym('y')
 psi = ca.SX.sym('psi')
 eta = ca.vertcat(x,y,psi)
 
-# x_d   = ca.SX.sym('x_d')                      # -----------------------HOW TO HANDLE ETA_D?-----------------------
-# y_d   = ca.SX.sym('y_d')
-# psi_d = ca.SX.sym('psi_d')
-# eta_d = ca.vertcat(x_d,y_d,psi_d)
+x_d   = ca.SX.sym('x_d')                      # -----------------------HOW TO HANDLE ETA_D?-----------------------
+y_d   = ca.SX.sym('y_d')
+psi_d = ca.SX.sym('psi_d')
+eta_d = ca.vertcat(x_d,y_d,psi_d)
 
 u  = ca.SX.sym('u')
 v  = ca.SX.sym('v')
@@ -189,6 +178,10 @@ alpha1 = ca.SX.sym('alpha1')
 alpha2 = ca.SX.sym('alpha2')
 alpha  = ca.vertcat(alpha1,alpha2)
 
+alpha1_dot = ca.SX.sym('alpha1_dot')
+alpha2_dot = ca.SX.sym('alpha2_dot')
+alpha_dot  = ca.vertcat(alpha1_dot,alpha2_dot)
+
 X = ca.vertcat(eta,nu)                  # NLP state vector
 U = ca.vertcat(f_thr,alpha)             # NLP input vector
 
@@ -198,7 +191,7 @@ u_min = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
 
 # Model equations
-eta_dot = ca.mtimes(J(psi), nu)
+eta_dot = ca.mtimes(J_rot(psi), nu)
 nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) - ca.mtimes(D_vessel, nu))
 
 # Objective term
@@ -221,8 +214,8 @@ w=[]                    # decision variables
 w0 = []                 # init. cond. on every decision variable
 lbw = []
 ubw = []
-J = 0                   # objective (x1,...xN,u1,...,uN)
-g=[]                    # constraints
+J = 0                   # objective (x1 + ... + xN + u1 + ... + uN)
+g=[]                    # constraints (eq. and ineq.)
 lbg = []
 ubg = []
 

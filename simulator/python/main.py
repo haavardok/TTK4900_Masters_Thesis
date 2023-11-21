@@ -159,7 +159,7 @@ y   = ca.SX.sym('y')
 psi = ca.SX.sym('psi')
 eta = ca.vertcat(x,y,psi)
 
-x_d   = ca.SX.sym('x_d')                      # -----------------------HOW TO HANDLE ETA_D?-----------------------
+x_d   = ca.SX.sym('x_d')
 y_d   = ca.SX.sym('y_d')
 psi_d = ca.SX.sym('psi_d')
 eta_d = ca.vertcat(x_d,y_d,psi_d)
@@ -210,14 +210,14 @@ N = 30                  # number of control intervals
 h = time_horizon / N    # step time
 
 # NLP formulation: parameters we wish to minimize the cost w.r.t.
-w=[]                    # decision variables
-w0 = []                 # init. cond. on every decision variable
-lbw = []
-ubw = []
-J = 0                   # objective (x1 + ... + xN + u1 + ... + uN)
-g=[]                    # constraints (eq. and ineq.)
-lbg = []
-ubg = []
+w=[]                    # decision/optimization variables
+w0 = []                 # decision variables, initial guess
+lbw = []                # decision variables lower bound
+ubw = []                # decision variables upper bound
+J = 0                   # sum of objective variables (x0 + ... + xN + u1 + ... + uN)
+g=[]                    # constraints variables
+lbg = []                # constraints lower bound
+ubg = []                # constraints upper bound
 
 # For plotting x and u given w
 x_plot = []
@@ -226,7 +226,7 @@ u_plot = []
 # "Lift" initial conditions
 Xk = ca.MX.sym('X0', X.size1())
 w.append(Xk)
-lbw.append(x_init)      # Equality constraint so bounded upper and lower --------------------------CHECK THIS---------------------------------
+lbw.append(x_init)      # Equality constraint so bounded upper and lower
 ubw.append(x_init)
 w0.append(x_init)       # x(0)=150, y(0)=-325, psi(0)=-pi, u(0)=0, v(0)=0, r(0)=0
 x_plot.append(Xk)
@@ -238,7 +238,7 @@ for k in range(N):
     w.append(Uk)
     lbw.append(u_min)
     ubw.append(u_max)
-    w0.append(u_init)       # "Initial guess" for the input at each opt. point
+    w0.append(u_init)   # initial guess for the inputs
     u_plot.append(Uk)
 
     # State at collocation points
@@ -249,7 +249,7 @@ for k in range(N):
         w.append(Xkj)                                                       # Optimize at each collocation point
         lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are unbounded (for now having no spatial constr.)
         ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
-        w0.append([0,0,0,0,0,0])                                                   # "Initial guess" for the states at each opt. point
+        w0.append([0,0,0, 0,0,0])                                           # initial guess for the states
 
     # Loop over collocation points
     Xk_end = D[0]*Xk                        # Link the states to the next opt. prob.
@@ -276,7 +276,7 @@ for k in range(N):
     w.append(Xk)
     lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])
     ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
-    w0.append([0,0,0,0,0,0])                       # -------------------------THIS MAY BE INCORRECT-------------------------------
+    w0.append([0,0,0, 0,0,0])               # -------------------------THIS MAY BE INCORRECT-------------------------------
     x_plot.append(Xk)
 
     # Add equality constraint
@@ -297,7 +297,8 @@ ubg = np.concatenate(ubg)
 
 # Create an NLP solver
 prob = {'f': J, 'x': w, 'g': g}
-solver = ca.nlpsol('solver', 'ipopt', prob)
+options = {'ipopt': {'max_iter':3000}}
+solver = ca.nlpsol('solver', 'ipopt', prob, options)
 
 # Function to get x and u trajectories from w
 trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])

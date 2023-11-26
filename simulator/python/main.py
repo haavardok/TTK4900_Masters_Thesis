@@ -87,6 +87,7 @@ alpha2_dot_max = (360*math.pi/180)/30
 # Weighting matrices
 Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for position and Euler angle vector eta ---------------------CHECK THESE THREE----------------------
 Q_nu = np.diag([1,1e-2,1e-1])                             # weighting matrix for linear and angular velocity vector nu
+Q_s = np.diag([1,1,1])                              # weighting matrix for the slack variables
 R_f = np.diag([1e-7,1e-7,1e-7])                              # weighting matrix for force vector f
 W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-3                                      # small constant to avoid division by 0
@@ -174,6 +175,11 @@ f2    = ca.SX.sym('f2')
 f3    = ca.SX.sym('f3')
 f_thr = ca.vertcat(f1,f2,f3)
 
+s1 = ca.SX.sym('s1')
+s2 = ca.SX.sym('s2')
+s3 = ca.SX.sym('s3')
+s  = ca.vertcat(s1,s2,s3)
+
 alpha1 = ca.SX.sym('alpha1')
 alpha2 = ca.SX.sym('alpha2')
 alpha  = ca.vertcat(alpha1,alpha2)
@@ -182,17 +188,17 @@ alpha1_dot = ca.SX.sym('alpha1_dot')
 alpha2_dot = ca.SX.sym('alpha2_dot')
 alpha_dot  = ca.vertcat(alpha1_dot,alpha2_dot)
 
-X = ca.vertcat(eta,nu)                  # NLP state vector
+X = ca.vertcat(eta,nu,s)                  # NLP state vector
 U = ca.vertcat(f_thr,alpha)             # NLP input vector
 
-x_init = [150,-325,-math.pi, 0,0,0]     # x(0)=150, y(0)=-325, psi(0)=-pi, u(0)=0, v(0)=0, r(0)=0
+x_init = [150,-325,-math.pi, 0,0,0, 0,0,0]     # x(0)=150, y(0)=-325, psi(0)=-pi, u(0)=0, v(0)=0, r(0)=0
 u_init = [0,0,0, 0,0]
 u_min = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
-nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) - ca.mtimes(D_vessel, nu))
+nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) + s - ca.mtimes(D_vessel, nu))
 
 # Objective term
 obj_det = ca.det(ca.mtimes(T(alpha), ca.mtimes(ca.inv(W), T(alpha).T)))     # singular configuration cost
@@ -200,7 +206,8 @@ objective = (ca.mtimes((eta).T, ca.mtimes(Q_eta, (eta))) +                  # --
 # objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
              ca.mtimes(nu.T, ca.mtimes(Q_nu, nu)) +
              ca.mtimes(f_thr.T, ca.mtimes(R_f, f_thr)) +
-             rho / (epsilon + obj_det))
+             rho / (epsilon + obj_det) +
+             ca.mtimes(s.T, ca.mtimes(Q_s, s)))
 
 # Continuous time dynamics
 f = ca.Function('f', [X, U], [eta_dot, nu_dot, objective], ['X', 'U'], ['eta_dot', 'nu_dot', 'objective'])
@@ -215,9 +222,9 @@ w0 = []                 # decision variables, initial guess
 lbw = []                # decision variables lower bound
 ubw = []                # decision variables upper bound
 J = 0                   # sum of objective variables (x0 + ... + xN + u1 + ... + uN)
-g=[]                    # constraints variables
-lbg = []                # constraints lower bound
-ubg = []                # constraints upper bound
+g=[]                    # constraint variables
+lbg = []                # constraint lower bounds
+ubg = []                # constraint upper bounds
 
 # For plotting x and u given w
 x_plot = []
@@ -247,9 +254,9 @@ for k in range(N):
         Xkj = ca.MX.sym('X_'+str(k)+'_'+str(j), X.size1())
         Xc.append(Xkj)
         w.append(Xkj)                                                       # Optimize at each collocation point
-        lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are unbounded (for now having no spatial constr.)
-        ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
-        w0.append([0,0,0, 0,0,0])                                           # initial guess for the states
+        lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are unbounded (for now having no spatial constr.)
+        ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
+        w0.append([0,0,0, 0,0,0, 0,0,0])                                           # initial guess for the states
 
     # Loop over collocation points
     Xk_end = D[0]*Xk                        # Link the states to the next opt. prob.
@@ -260,10 +267,10 @@ for k in range(N):
 
         # Append collocation equations
         fj1, fj2, qj = f(Xc[j-1],Uk)
-        fj = ca.vertcat(fj1,fj2)            # Need to concatenate eta_dot and nu_dot into xdot -------------------------THIS MAY BE INCORRECT-------------------------------
+        fj = ca.vertcat(fj1,fj2,[0,0,0])            # Need to concatenate eta_dot and nu_dot into xdot -------------------------THIS MAY BE INCORRECT-------------------------------
         g.append(h*fj - xp)                 # See Gros 2022: Step length times x_dot - x_p
-        lbg.append([0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
-        ubg.append([0,0,0, 0,0,0])
+        lbg.append([0,0,0, 0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
+        ubg.append([0,0,0, 0,0,0, 0,0,0])
 
         # Add contribution to the end state
         Xk_end = Xk_end + D[j]*Xc[j-1]
@@ -274,15 +281,15 @@ for k in range(N):
     # New NLP variable for state at end of interval
     Xk = ca.MX.sym('X_' + str(k+1), X.size1())
     w.append(Xk)
-    lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])
-    ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
-    w0.append([0,0,0, 0,0,0])               # -------------------------THIS MAY BE INCORRECT-------------------------------
+    lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])
+    ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
+    w0.append([0,0,0, 0,0,0, 0,0,0])               # -------------------------THIS MAY BE INCORRECT-------------------------------
     x_plot.append(Xk)
 
     # Add equality constraint
     g.append(Xk_end-Xk)
-    lbg.append([0,0,0, 0,0,0])              # -------------------------THIS MAY BE INCORRECT-------------------------------
-    ubg.append([0,0,0, 0,0,0])
+    lbg.append([0,0,0, 0,0,0, 0,0,0])              # -------------------------THIS MAY BE INCORRECT-------------------------------
+    ubg.append([0,0,0, 0,0,0, 0,0,0])
 
 # Concatenate vectors
 w = ca.vertcat(*w)
@@ -343,13 +350,13 @@ fig2.suptitle("Linear and angular velocity vector $\\boldsymbol{\\nu}$")
 fig2.supxlabel("t")
 
 fig3, subplot3 = plt.subplots(3, sharex=True)
-subplot3[0].plot(tgrid2, u_opt[0], '-', label="$f_1$ [kN]")
+subplot3[0].step(tgrid2, u_opt[0], '-', label="$f_1$ [kN]")
 subplot3[0].legend(loc='upper right')
 subplot3[0].grid()
-subplot3[1].plot(tgrid2, u_opt[1], '-', label="$f_2$ [kN]")
+subplot3[1].step(tgrid2, u_opt[1], '-', label="$f_2$ [kN]")
 subplot3[1].legend(loc='upper right')
 subplot3[1].grid()
-subplot3[2].plot(tgrid2, u_opt[2], '-', label="$f_3$ [kN]")
+subplot3[2].step(tgrid2, u_opt[2], '-', label="$f_3$ [kN]")
 subplot3[2].legend(loc='upper right')
 subplot3[2].grid()
 fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
@@ -364,6 +371,14 @@ subplot4[1].legend(loc='upper right')
 subplot4[1].grid()
 fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")
 fig4.supxlabel("t")
+
+plt.figure(5)
+plt.plot(tgrid, x_opt[6], '-')
+plt.plot(tgrid, x_opt[7], '-')
+plt.plot(tgrid, x_opt[8], '-')
+plt.xlabel('t')
+plt.legend(['s1','s2','s3'])
+plt.grid()
 
 plt.show()
 

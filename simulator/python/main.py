@@ -17,7 +17,6 @@ def J_rot(psi):
 
         Returns:
             J_psi (ndarray): Rotation matrix in SO(3)
-
     '''
     
     cpsi = ca.cos(psi)
@@ -30,6 +29,26 @@ def J_rot(psi):
 
     return J_psi
 
+def R_rot(psi):
+    '''
+    Returns the Euler angle rotation matrix R(psi) in SO(2) using the zyx convention
+    for 2-DOF model for surface vessels.
+
+        Parameters:
+            psi (float): An heading angle in radians
+
+        Returns:
+            R_psi (ndarray): Rotation matrix in SO(2)
+    '''
+    
+    cpsi = ca.cos(psi)
+    spsi = ca.sin(psi)
+    
+    R_psi = np.array([
+        [ cpsi, -spsi],
+        [ spsi,  cpsi] ])
+
+    return R_psi
 
 def T(alpha):
     '''
@@ -83,11 +102,12 @@ alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # az
 alpha3 = math.pi/2                                  # bow tunnel thruster constant angle (rad)
 alpha1_dot_max = (360*math.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
 alpha2_dot_max = (360*math.pi/180)/30
+vessel_safety_margin = 1.1                          # safety margin M of set Sb w.r.t. Sv
 
 # Weighting matrices
 Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for position and Euler angle vector eta ---------------------CHECK THESE THREE----------------------
 Q_nu = np.diag([1,1e-2,1e-1])                             # weighting matrix for linear and angular velocity vector nu
-Q_s = np.diag([1,1,1])                              # weighting matrix for the slack variables
+Q_s = np.diag([1e3,1e3,1e3])                              # weighting matrix for the slack variables
 R_f = np.diag([1e-7,1e-7,1e-7])                              # weighting matrix for force vector f
 W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-3                                      # small constant to avoid division by 0
@@ -106,6 +126,43 @@ D_bis = np.array([                                  # non-dimensional dampening 
 
 M_vessel = m * N_mtrx @ M_bis @ N_mtrx                     # vessel mass matrix (kg)
 D_vessel = m * math.sqrt(g/L) * N_mtrx @ D_bis @ N_mtrx    # vessel dampening matrix (kg)
+
+S_v = np.array([                                    # vertices for the convex set Sv in {b} defining the vessel
+    [-38.1, -9.4],
+    [-38.1,  9.4],
+    [ 21.8,  9.4],
+    [ 38.1,  0.0],
+    [ 21.8, -9.4] ])
+
+S_b = S_v * vessel_safety_margin                    # vertices for the convex set Sb in {b} defining the vessel boundary (10 % dilution of Sv)
+
+S_s = np.array([                                    # vertices for the convex set Ss in {n} defining the harbour area
+    [-100, -100],
+    [ -60,  150],
+    [   0,  -65],
+    [   0,  500],
+    [  85,  150],
+    [ 175,  500] ])
+
+A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
+    [ 0.0000,  1.0000],
+    [-0.9856,  0.1690],
+    [-0.9874,  0.1580],
+    [ 0.9685, -0.2490],
+    [ 0.9300, -0.3677],
+    [ 0.3304, -0.9439]])
+
+b_s = np.array([600, 2.8161, 0, 116.9109, 80.1280, 0])
+
+A_s_no_eta_d = np.array([                            # spatial constraints for convex set (Hurtigruta terminal)
+    [ 0.0000,  1.0000],
+    [ 0.9685, -0.2490],
+    [ 0.9300, -0.3677],
+    [-0.9856,  0.1690],
+    [-0.9874,  0.1580],
+    [ 0.3304, -0.9439]])
+
+b_s_no_eta_d = np.array([500, 44.9657, 23.8978, 84.4819, 82.9450, 61.3508])
 
 
 #######################################################################
@@ -191,10 +248,10 @@ alpha_dot  = ca.vertcat(alpha1_dot,alpha2_dot)
 X = ca.vertcat(eta,nu,s)                  # NLP state vector
 U = ca.vertcat(f_thr,alpha)             # NLP input vector
 
-x_init = [150,-325,-math.pi, 0,0,0, 0,0,0]     # x(0)=150, y(0)=-325, psi(0)=-pi, u(0)=0, v(0)=0, r(0)=0
+x_init = [50,300,-math.pi/2, 0,0,0, 0,0,0]     # x(0)=50, y(0)=300, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0
 u_init = [0,0,0, 0,0]
-u_min = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
-u_max = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
+u_min  = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
+u_max  = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
@@ -211,6 +268,12 @@ objective = (ca.mtimes((eta).T, ca.mtimes(Q_eta, (eta))) +                  # --
 
 # Continuous time dynamics
 f = ca.Function('f', [X, U], [eta_dot, nu_dot, objective], ['X', 'U'], ['eta_dot', 'nu_dot', 'objective'])
+
+# Spatial constraints
+# spatial_constraints = []
+# for vertex in range(S_b.shape[0]):
+#     constr = ca.mtimes(A_s_no_eta_d, ca.mtimes(R_rot(psi), S_b[vertex]) + X[0:2])
+#     spatial_constraints.append(constr)
 
 # Control discretization
 N = 30                  # number of control intervals

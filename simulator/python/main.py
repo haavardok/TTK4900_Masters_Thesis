@@ -100,8 +100,10 @@ f3_min = -1/60 * m; f3_max = 1/60 * m               # bow tunnel thruster force 
 alpha1_min = -170*math.pi/180; alpha1_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha3 = math.pi/2                                  # bow tunnel thruster constant angle (rad)
-alpha1_dot_max = (360*math.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
-alpha2_dot_max = (360*math.pi/180)/30
+alpha1_dot_max = (360*math.pi/180)/3               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
+alpha2_dot_max = (360*math.pi/180)/3
+delta_alpha1_max = alpha1_dot_max / 10              # discrete time azimuth thruster turnaround time (cont. time / step size)
+delta_alpha2_max = alpha2_dot_max / 10
 vessel_safety_margin = 1.1                          # safety margin M of set Sb w.r.t. Sv
 knot2ms = 0.514                                     # conversion constant for knots to m/s
 
@@ -110,6 +112,7 @@ Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for
 Q_nu = np.diag([1,1e-2,1e-1])                             # weighting matrix for linear and angular velocity vector nu
 Q_s = np.diag([1e3,1e3,1e3])                              # weighting matrix for the slack variables
 R_f = np.diag([1e-7,1e-7,1e-7])                              # weighting matrix for force vector f
+R_alpha = np.diag([1e-3,1e-3])                      # weighting matrix for azimuth thruster turn rate
 W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-3                                      # small constant to avoid division by 0
 rho = 1                                             # thruster weighting of maneuverability
@@ -229,15 +232,15 @@ alpha1 = ca.SX.sym('alpha1')
 alpha2 = ca.SX.sym('alpha2')
 alpha  = ca.vertcat(alpha1,alpha2)
 
-alpha1_dot = ca.SX.sym('alpha1_dot')
-alpha2_dot = ca.SX.sym('alpha2_dot')
-alpha_dot  = ca.vertcat(alpha1_dot,alpha2_dot)
+alpha1_0 = ca.SX.sym('alpha1_0')
+alpha2_0 = ca.SX.sym('alpha2_0')
+alpha_0  = ca.vertcat(alpha1_0,alpha2_0)            # previous input of azimuth angles
 
 X   = ca.vertcat(eta,nu,s)                          # NLP state vector
 U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
 X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
-x_init    = [500,175,-math.pi/2, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s2(0)=0,
+x_init    = [500,175,-math.pi/2, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
 x_desired = [250,40,0, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
@@ -251,12 +254,13 @@ nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) + s - ca.mtimes(
 obj_det = ca.det(ca.mtimes(T(alpha), ca.mtimes(ca.inv(W), T(alpha).T)))     # singular configuration cost
 objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
              ca.mtimes((nu-nu_d).T, ca.mtimes(Q_nu, (nu-nu_d))) +
+             ca.mtimes(s.T, ca.mtimes(Q_s, s)) +
              ca.mtimes(f_thr.T, ca.mtimes(R_f, f_thr)) +
-             rho / (epsilon + obj_det) +
-             ca.mtimes(s.T, ca.mtimes(Q_s, s)))
+             ca.mtimes((alpha-alpha_0).T, ca.mtimes(R_alpha, (alpha-alpha_0))) +
+             rho / (epsilon + obj_det))
 
 # Continuous time dynamics
-f = ca.Function('f', [X, U, X_d], [eta_dot, nu_dot, objective], ['X', 'U', 'X_d'], ['eta_dot', 'nu_dot', 'objective'])
+f = ca.Function('f', [X, U, X_d, alpha_0], [eta_dot, nu_dot, objective], ['X', 'U', 'X_d', 'alpha_0'], ['eta_dot', 'nu_dot', 'objective'])
 
 # Spatial constraints
 spatial_constraints = A_s @ ((R_rot(psi) @ S_b).T + ca.repmat(ca.horzcat(x, y), S_b.shape[1], 1)).T
@@ -316,11 +320,25 @@ for k in range(N):
         for r in range(d): xp = xp + C[r+1,j]*Xc[r]
 
         # Append collocation equations
-        fj1, fj2, qj = f(Xc[j-1],Uk,x_desired)
-        fj = ca.vertcat(fj1,fj2,[0,0,0])            # Need to concatenate eta_dot and nu_dot into xdot -------------------------THIS MAY BE INCORRECT-------------------------------
-        g.append(h*fj - xp)                 # See Gros 2022: Step length times x_dot - x_p
-        lbg.append([0,0,0, 0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
-        ubg.append([0,0,0, 0,0,0, 0,0,0])
+        if k==0:
+            fj1, fj2, qj = f(Xc[j-1],Uk,x_desired,[0,0])
+            fj = ca.vertcat(fj1,fj2,[0,0,0])
+            g.append(h*fj - xp)
+            lbg.append([0,0,0, 0,0,0, 0,0,0])
+            ubg.append([0,0,0, 0,0,0, 0,0,0])
+            g.append(Uk[3:])
+            lbg.append([-alpha1_dot_max,-alpha2_dot_max])
+            ubg.append([alpha1_dot_max,alpha2_dot_max])
+        else:
+            index_Uk_previous = len(w)-9
+            fj1, fj2, qj = f(Xc[j-1],Uk,x_desired,w[index_Uk_previous][3:])
+            fj = ca.vertcat(fj1,fj2,[0,0,0])            # Need to concatenate eta_dot and nu_dot into xdot -------------------------THIS MAY BE INCORRECT-------------------------------
+            g.append(h*fj - xp)                 # See Gros 2022: Step length times x_dot - x_p
+            lbg.append([0,0,0, 0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
+            ubg.append([0,0,0, 0,0,0, 0,0,0])
+            g.append(Uk[3:]-w[index_Uk_previous][3:])
+            lbg.append([-alpha1_dot_max,-alpha2_dot_max])
+            ubg.append([alpha1_dot_max,alpha2_dot_max])
 
         # Add contribution to the end state
         Xk_end = Xk_end + D[j]*Xc[j-1]
@@ -420,10 +438,10 @@ fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
 fig3.supxlabel("t")
 
 fig4, subplot4 = plt.subplots(2, sharex=True)
-subplot4[0].plot(tgrid2, u_opt[3], '-', label="$\\alpha_1$ [rad]")
+subplot4[0].step(tgrid2, u_opt[3], '-', label="$\\alpha_1$ [rad]")
 subplot4[0].legend(loc='upper right')
 subplot4[0].grid()
-subplot4[1].plot(tgrid2, u_opt[4], '-', label="$\\alpha_2$ [rad]")
+subplot4[1].step(tgrid2, u_opt[4], '-', label="$\\alpha_2$ [rad]")
 subplot4[1].legend(loc='upper right')
 subplot4[1].grid()
 fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")

@@ -94,15 +94,16 @@ lx1 = -35; ly1 = 7                                  # azimuth thruster 1 positio
 lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
 lx3 = 35;  ly3 = 0                                  # bow tunnel thruster position (m)
 alpha3 = math.pi/2                                  # bow tunnel thruster angle (rad)
-f1_min = -1/30 * m*g; f1_max = 1/30 * m*g               # azimuth thruster 1 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
-f2_min = -1/30 * m*g; f2_max = 1/30 * m*g               # azimuth thruster 2 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
-f3_min = -1/60 * m*g; f3_max = 1/60 * m*g               # bow tunnel thruster force saturation (kN) ------------------------------CHECK THIS-------------------------------------------
+f1_min = -1/30 * m; f1_max = 1/30 * m               # azimuth thruster 1 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
+f2_min = -1/30 * m; f2_max = 1/30 * m               # azimuth thruster 2 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
+f3_min = -1/60 * m; f3_max = 1/60 * m               # bow tunnel thruster force saturation (kN) ------------------------------CHECK THIS-------------------------------------------
 alpha1_min = -170*math.pi/180; alpha1_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha3 = math.pi/2                                  # bow tunnel thruster constant angle (rad)
 alpha1_dot_max = (360*math.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
 alpha2_dot_max = (360*math.pi/180)/30
 vessel_safety_margin = 1.1                          # safety margin M of set Sb w.r.t. Sv
+knot2ms = 0.514                                     # conversion constant for knots to m/s
 
 # Weighting matrices
 Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for position and Euler angle vector eta ---------------------CHECK THESE THREE----------------------
@@ -132,37 +133,19 @@ S_v = np.array([                                    # vertices for the convex se
     [-38.1,  9.4],
     [ 21.8,  9.4],
     [ 38.1,  0.0],
-    [ 21.8, -9.4] ])
+    [ 21.8, -9.4] ]).T
 
 S_b = S_v * vessel_safety_margin                    # vertices for the convex set Sb in {b} defining the vessel boundary (10 % dilution of Sv)
 
-S_s = np.array([                                    # vertices for the convex set Ss in {n} defining the harbour area
-    [-100, -100],
-    [ -60,  150],
-    [   0,  -65],
-    [   0,  500],
-    [  85,  150],
-    [ 175,  500] ])
-
 A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
-    [ 0.0000,  1.0000],
-    [-0.9856,  0.1690],
-    [-0.9874,  0.1580],
-    [ 0.9685, -0.2490],
-    [ 0.9300, -0.3677],
-    [ 0.3304, -0.9439]])
+    [ 1.0000,  0.0000],
+    [-0.2490,  0.9685],
+    [-0.3677,  0.9300],
+    [ 0.1690, -0.9856],
+    [ 0.1580, -0.9874],
+    [-0.9439,  0.3304]])
 
-b_s = np.array([600, 2.8161, 0, 116.9109, 80.1280, 0])
-
-A_s_no_eta_d = np.array([                            # spatial constraints for convex set (Hurtigruta terminal)
-    [ 0.0000,  1.0000],
-    [ 0.9685, -0.2490],
-    [ 0.9300, -0.3677],
-    [-0.9856,  0.1690],
-    [-0.9874,  0.1580],
-    [ 0.3304, -0.9439]])
-
-b_s_no_eta_d = np.array([500, 44.9657, 23.8978, 84.4819, 82.9450, 61.3508])
+b_s = np.array([600, 116.9109, 80.1280, 2.8161, 0, 0])
 
 
 #######################################################################
@@ -227,6 +210,11 @@ v  = ca.SX.sym('v')
 r  = ca.SX.sym('r')
 nu = ca.vertcat(u,v,r)
 
+u_d  = ca.SX.sym('u_d')
+v_d  = ca.SX.sym('v_d')
+r_d  = ca.SX.sym('r_d')
+nu_d = ca.vertcat(u_d,v_d,r_d)
+
 f1    = ca.SX.sym('f1')
 f2    = ca.SX.sym('f2')
 f3    = ca.SX.sym('f3')
@@ -245,13 +233,15 @@ alpha1_dot = ca.SX.sym('alpha1_dot')
 alpha2_dot = ca.SX.sym('alpha2_dot')
 alpha_dot  = ca.vertcat(alpha1_dot,alpha2_dot)
 
-X = ca.vertcat(eta,nu,s)                  # NLP state vector
-U = ca.vertcat(f_thr,alpha)             # NLP input vector
+X   = ca.vertcat(eta,nu,s)                          # NLP state vector
+U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
+X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
-x_init = [50,300,-math.pi/2, 0,0,0, 0,0,0]     # x(0)=50, y(0)=300, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0
-u_init = [0,0,0, 0,0]
-u_min  = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
-u_max  = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
+x_init    = [500,175,-math.pi/2, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s2(0)=0,
+x_desired = [250,40,0, 0,0,0]
+u_init    = [0,0,0, 0,0]
+u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
+u_max     = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
@@ -259,21 +249,18 @@ nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) + s - ca.mtimes(
 
 # Objective term
 obj_det = ca.det(ca.mtimes(T(alpha), ca.mtimes(ca.inv(W), T(alpha).T)))     # singular configuration cost
-objective = (ca.mtimes((eta).T, ca.mtimes(Q_eta, (eta))) +                  # ----------------------------HOW TO HANDLE ETA_D---------------------
-# objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
-             ca.mtimes(nu.T, ca.mtimes(Q_nu, nu)) +
+objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
+             ca.mtimes((nu-nu_d).T, ca.mtimes(Q_nu, (nu-nu_d))) +
              ca.mtimes(f_thr.T, ca.mtimes(R_f, f_thr)) +
              rho / (epsilon + obj_det) +
              ca.mtimes(s.T, ca.mtimes(Q_s, s)))
 
 # Continuous time dynamics
-f = ca.Function('f', [X, U], [eta_dot, nu_dot, objective], ['X', 'U'], ['eta_dot', 'nu_dot', 'objective'])
+f = ca.Function('f', [X, U, X_d], [eta_dot, nu_dot, objective], ['X', 'U', 'X_d'], ['eta_dot', 'nu_dot', 'objective'])
 
 # Spatial constraints
-# spatial_constraints = []
-# for vertex in range(S_b.shape[0]):
-#     constr = ca.mtimes(A_s_no_eta_d, ca.mtimes(R_rot(psi), S_b[vertex]) + X[0:2])
-#     spatial_constraints.append(constr)
+spatial_constraints = A_s @ ((R_rot(psi) @ S_b).T + ca.repmat(ca.horzcat(x, y), S_b.shape[1], 1)).T
+f_harbor = ca.Function('f_harbor', [X], [spatial_constraints], ['X'], ['spatial_constraints'])
 
 # Control discretization
 N = 30                  # number of control intervals
@@ -317,8 +304,8 @@ for k in range(N):
         Xkj = ca.MX.sym('X_'+str(k)+'_'+str(j), X.size1())
         Xc.append(Xkj)
         w.append(Xkj)                                                       # Optimize at each collocation point
-        lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are unbounded (for now having no spatial constr.)
-        ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
+        lbw.append([-np.inf,-np.inf,-np.inf, -1*knot2ms,-0.5*knot2ms,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are bounded by inequality constraint
+        ubw.append([np.inf,np.inf,np.inf, 5*knot2ms,0.5*knot2ms,np.inf, np.inf,np.inf,np.inf])
         w0.append([0,0,0, 0,0,0, 0,0,0])                                           # initial guess for the states
 
     # Loop over collocation points
@@ -329,7 +316,7 @@ for k in range(N):
         for r in range(d): xp = xp + C[r+1,j]*Xc[r]
 
         # Append collocation equations
-        fj1, fj2, qj = f(Xc[j-1],Uk)
+        fj1, fj2, qj = f(Xc[j-1],Uk,x_desired)
         fj = ca.vertcat(fj1,fj2,[0,0,0])            # Need to concatenate eta_dot and nu_dot into xdot -------------------------THIS MAY BE INCORRECT-------------------------------
         g.append(h*fj - xp)                 # See Gros 2022: Step length times x_dot - x_p
         lbg.append([0,0,0, 0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
@@ -353,6 +340,13 @@ for k in range(N):
     g.append(Xk_end-Xk)
     lbg.append([0,0,0, 0,0,0, 0,0,0])              # -------------------------THIS MAY BE INCORRECT-------------------------------
     ubg.append([0,0,0, 0,0,0, 0,0,0])
+
+    # Add inequality constraints for the convex set
+    spatial_constraint = f_harbor(Xk)
+    for i in range(S_b.shape[1]):
+        g.append(spatial_constraint[:,i])
+        lbg.append([-np.inf,-np.inf,-np.inf,-np.inf,-np.inf,-np.inf])
+        ubg.append(b_s)
 
 # Concatenate vectors
 w = ca.vertcat(*w)
@@ -384,19 +378,19 @@ tgrid = np.linspace(0, time_horizon, N+1)
 tgrid2 = np.linspace(0, time_horizon, N)
 
 fig1, subplot1 = plt.subplots(3, sharex=True)
-subplot1[0].plot(tgrid, x_opt[0], '-', label="$x$ [m]")
+subplot1[0].plot(tgrid, x_opt[0]-x_desired[0], '-', label="$x-x_d$ [m]")
 subplot1[0].legend(loc='upper right')
 # subplot1[0].set_ylim([0,200])
 subplot1[0].grid()
-subplot1[1].plot(tgrid, x_opt[1], '-', label="$y$ [m]")
+subplot1[1].plot(tgrid, x_opt[1]-x_desired[1], '-', label="$y-y_d$ [m]")
 subplot1[1].legend(loc='upper right')
 # subplot1[1].set_ylim([-350,0])
 subplot1[1].grid()
-subplot1[2].plot(tgrid, x_opt[2], '-', label="$\\psi$ [rad]")
+subplot1[2].plot(tgrid, x_opt[2]-x_desired[2], '-', label="$\\psi-\\psi_d$ [rad]")
 subplot1[2].legend(loc='upper right')
 # subplot1[2].set_ylim([-3.5,0])
 subplot1[2].grid()
-fig1.suptitle("Position and angle vector $\\boldsymbol{\\eta}$")
+fig1.suptitle("Vessel pose error $\\boldsymbol{\\eta}-\\boldsymbol{\\eta}_d$")
 fig1.supxlabel("t")
 
 fig2, subplot2 = plt.subplots(3, sharex=True)
@@ -444,19 +438,3 @@ plt.legend(['s1','s2','s3'])
 plt.grid()
 
 plt.show()
-
-# plt.plot(tgrid, x_opt[0], '--')
-# plt.plot(tgrid, x_opt[1], '-')
-# plt.plot(tgrid, x_opt[2], '-')
-# plt.xlabel('t')
-# plt.legend(['x','y','psi'])
-# plt.grid()
-
-# plt.figure(2)
-# plt.step(tgrid, np.append(np.nan, u_opt[0]), '-.')
-# plt.step(tgrid, np.append(np.nan, u_opt[1]), '-.')
-# plt.step(tgrid, np.append(np.nan, u_opt[2]), '-.')
-# plt.xlabel('t')
-# plt.legend(['f1','f2','f3'])
-# plt.grid()
-# plt.show()

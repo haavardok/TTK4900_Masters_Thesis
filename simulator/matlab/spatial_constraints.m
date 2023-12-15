@@ -8,14 +8,21 @@ clc
 %       y_n axis points towards East
 %      (z_n axis points downwards normal to the Earth's surface)
 
-harbor_vertices = [   0   0;      % Trondheim Hurtigruta harbor
-                     35 100;
-                    250 185;
-                    600 275;
-                    600 100;
-                    250  40];
+% harbor_vertices_nordhus = [   0   0;      % Trondheim Hurtigruta harbor
+%                      35 100;
+%                     250 185;
+%                     600 275;
+%                     600 100;
+%                       0   0];
+
+
+harbor_vertices_martinsen = [   0   0;      % Trondheim Hurtigruta harbor
+                               -8  22;
+                               10  75;
+                              900 250;
+                              900  40];
 
 % Using vert2lcon() to find the linear inequality constraints defining the
 % convex polygon in R^2 given its vertices.
 
-[As,bs] = vert2lcon(harbor_vertices)
+[As,bs] = vert2lcon(harbor_vertices_martinsen)

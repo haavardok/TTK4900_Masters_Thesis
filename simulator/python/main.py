@@ -1,89 +1,13 @@
 import math
 import numpy as np
 import casadi as ca
-import matplotlib.pyplot as plt
 
-#######################################################################
-# Defining functions
-#######################################################################
-
-def J_rot(psi):
-    '''
-    Returns the Euler angle rotation matrix J(psi) in SO(3) using the zyx convention
-    for 3-DOF model for surface vessels. Fossen (2.60).
-
-        Parameters:
-            psi (float): An heading angle in radians
-
-        Returns:
-            J_psi (ndarray): Rotation matrix in SO(3)
-    '''
-    
-    cpsi = ca.cos(psi)
-    spsi = ca.sin(psi)
-    
-    J_psi = np.array([
-        [ cpsi, -spsi, 0 ],
-        [ spsi,  cpsi, 0 ],
-        [  0,     0,   1 ] ])
-
-    return J_psi
-
-def R_rot(psi):
-    '''
-    Returns the Euler angle rotation matrix R(psi) in SO(2) using the zyx convention
-    for 2-DOF model for surface vessels.
-
-        Parameters:
-            psi (float): An heading angle in radians
-
-        Returns:
-            R_psi (ndarray): Rotation matrix in SO(2)
-    '''
-    
-    cpsi = ca.cos(psi)
-    spsi = ca.sin(psi)
-    
-    R_psi = np.array([
-        [ cpsi, -spsi],
-        [ spsi,  cpsi] ])
-
-    return R_psi
-
-def T(alpha):
-    '''
-    Returns the thrust configuration matrix dependent on the angles alpha. 
-    Assuming two azimuth thrusters in the aft, with one tunnel thruster in
-    the front with positions and angles given from the vessel model.
-    Fossen ch. 11.2.1.
-
-        Parameters:
-            alpha (list): Azimuth thruster angles in radians
-
-        Returns:
-            T_thr (ndarray): Thruster configuration matrix
-    '''
-    
-    lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m)
-    lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
-    lx3 = 35;                                           # bow tunnel thruster position (m)
-
-    calpha1 = ca.cos(alpha[0])
-    salpha1 = ca.sin(alpha[0])
-    calpha2 = ca.cos(alpha[1])
-    salpha2 = ca.sin(alpha[1])
-    
-    T_thr = ca.vertcat(
-        ca.horzcat(calpha1, calpha2, 0),
-        ca.horzcat(salpha1, salpha2, 1),
-        ca.horzcat(lx1*salpha1-ly1*calpha1, lx2*salpha2-ly2*calpha2, lx3)
-    )
-
-    return T_thr
+from lib.helpers import*
+from lib.plot import *
 
 
 #######################################################################
-# Defining the ship parameters and OCP constraints
+# Defining the ship parameters
 #######################################################################
 
 # Vessel parameters
@@ -93,29 +17,16 @@ m = 6000e3                                          # vessel mass (kg)
 lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m)
 lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
 lx3 = 35;  ly3 = 0                                  # bow tunnel thruster position (m)
-alpha3 = math.pi/2                                  # bow tunnel thruster angle (rad)
+alpha3 = ca.pi/2                                  # bow tunnel thruster constant angle (rad) in {b}
 f1_min = -1/30 * m; f1_max = 1/30 * m               # azimuth thruster 1 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f2_min = -1/30 * m; f2_max = 1/30 * m               # azimuth thruster 2 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f3_min = -1/60 * m; f3_max = 1/60 * m               # bow tunnel thruster force saturation (kN) ------------------------------CHECK THIS-------------------------------------------
-alpha1_min = -170*math.pi/180; alpha1_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
-alpha2_min = -170*math.pi/180; alpha2_max = 170*math.pi/180                 # azimuth thruster 1 angle saturation (rad)
-alpha3 = math.pi/2                                  # bow tunnel thruster constant angle (rad)
-alpha1_dot_max = (360*math.pi/180)/3               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
-alpha2_dot_max = (360*math.pi/180)/3
-delta_alpha1_max = alpha1_dot_max / 10              # discrete time azimuth thruster turnaround time (cont. time / step size)
-delta_alpha2_max = alpha2_dot_max / 10
-vessel_safety_margin = 1.1                          # safety margin M of set Sb w.r.t. Sv
-knot2ms = 0.514                                     # conversion constant for knots to m/s
-
-# Weighting matrices
-Q_eta = np.diag([1e4,1e4,1e7])                            # weighting matrix for position and Euler angle vector eta ---------------------CHECK THESE THREE----------------------
-Q_nu = np.diag([1,1e-2,1e-1])                             # weighting matrix for linear and angular velocity vector nu
-Q_s = np.diag([1e3,1e3,1e3])                              # weighting matrix for the slack variables
-R_f = np.diag([1e-7,1e-7,1e-7])                              # weighting matrix for force vector f
-R_alpha = np.diag([1e-3,1e-3])                      # weighting matrix for azimuth thruster turn rate
-W = np.diag([1,1,1])                                # thruster weighting matrix
-epsilon = 1e-3                                      # small constant to avoid division by 0
-rho = 1                                             # thruster weighting of maneuverability
+alpha1_min = -170*ca.pi/180; alpha1_max = 170*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
+alpha2_min = -170*ca.pi/180; alpha2_max = 170*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
+alpha1_dot_max = (360*ca.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
+alpha2_dot_max = (360*ca.pi/180)/30
+delta_alpha1_max = alpha1_dot_max * 10              # discrete time azimuth thruster turnaround time (cont. time * step size)
+delta_alpha2_max = alpha2_dot_max * 10
 
 N_mtrx = np.diag([1, 1, L])                         # diagonal normalization matrix (bis-system)
 M_bis = np.array([                                  # non-dimensional mass matrix (bis-system)
@@ -138,17 +49,40 @@ S_v = np.array([                                    # vertices for the convex se
     [ 38.1,  0.0],
     [ 21.8, -9.4] ]).T
 
+
+#######################################################################
+# Defining NLP weighting matrices and spatial constraints
+#######################################################################
+
+# Weighting matrices
+Q_eta = np.diag([1e4,1e4,1e7])                      # weighting matrix for position and Euler angle vector eta
+Q_nu = np.diag([1,1,1])                             # weighting matrix for linear and angular velocity vector nu
+Q_s = np.diag([1e3,1e3,1e3])                        # weighting matrix for the slack variables
+R_f = np.diag([1e-7,1e-7,1e-7])                     # weighting matrix for force vector f
+R_alpha = np.diag([1e-2,1e-2])                      # weighting matrix for azimuth thruster turn rate
+W = np.diag([1,1,1])                                # thruster weighting matrix
+epsilon = 1e-3                                      # small constant to avoid division by 0
+rho = 1                                             # thruster weighting of maneuverability
+
+vessel_safety_margin = 1.1                          # safety margin M of set Sb w.r.t. Sv
+
 S_b = S_v * vessel_safety_margin                    # vertices for the convex set Sb in {b} defining the vessel boundary (10 % dilution of Sv)
+
+harbor_constraint = np.array([[0,0],                # vertices for the convex set in {n} defining the Trondheim harbor
+                              [-8,20],
+                              [10,75],
+                              [900,250],
+                              [900,40],
+                              [0,0]])
 
 A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
     [ 1.0000,  0.0000],
-    [-0.2490,  0.9685],
-    [-0.3677,  0.9300],
-    [ 0.1690, -0.9856],
-    [ 0.1580, -0.9874],
-    [-0.9439,  0.3304]])
+    [-0.1929,  0.9812],
+    [ 0.0444, -0.9990],
+    [-0.9469,  0.3216],
+    [-0.9398, -0.3417]])
 
-b_s = np.array([600, 116.9109, 80.1280, 2.8161, 0, 0])
+b_s = np.array([900, 71.6615, 0, 14.6499, 0])
 
 
 #######################################################################
@@ -189,6 +123,7 @@ for j in range(d+1):
     # Evaluate the integral of the polynomial to get the coefficients of the quadrature function
     Lint = np.polyint(L)
     B[j] = Lint(1.0)
+
 
 #######################################################################
 # Building the NLP
@@ -240,11 +175,22 @@ X   = ca.vertcat(eta,nu,s)                          # NLP state vector
 U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
 X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
-x_init    = [500,175,-math.pi/2, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
-x_desired = [250,40,0, 0,0,0]
+x_init    = [600,125.75,-ca.pi, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
+x_desired = [200,40,0.5411318962347, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max     = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
+
+# Plot initial pose of the problem
+vessel = np.array([
+            [-38.1, -9.4],
+            [-38.1,  9.4],
+            [ 21.8,  9.4],
+            [ 38.1,  0.0],
+            [ 21.8, -9.4],
+            [-38.1, -9.4] ])
+plot_NE_trajectory(harbor_constraint, vessel, [600,125.75,math.pi], 0)
+plot_NE_trajectory(harbor_constraint, vessel, [200,40,0.5411318962347], 0)
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
@@ -252,7 +198,15 @@ nu_dot = ca.mtimes(ca.inv(M_vessel), ca.mtimes(T(alpha), f_thr) + s - ca.mtimes(
 
 # Objective term
 obj_det = ca.det(ca.mtimes(T(alpha), ca.mtimes(ca.inv(W), T(alpha).T)))     # singular configuration cost
-objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
+# objective = (ca.mtimes((eta-eta_d).T, ca.mtimes(Q_eta, (eta-eta_d))) +      # continuous time objective
+#              ca.mtimes((nu-nu_d).T, ca.mtimes(Q_nu, (nu-nu_d))) +
+#              ca.mtimes(s.T, ca.mtimes(Q_s, s)) +
+#              ca.mtimes(f_thr.T, ca.mtimes(R_f, f_thr)) +
+#              ca.mtimes((alpha-alpha_0).T, ca.mtimes(R_alpha, (alpha-alpha_0))) +
+#              rho / (epsilon + obj_det))
+
+objective = (ca.mtimes((eta[:2]-eta_d[:2]).T, ca.mtimes(Q_eta[:2,:2], (eta[:2]-eta_d[:2]))) +      # continuous time objective
+             ca.mtimes(ssa(eta[2]-eta_d[2]).T, ca.mtimes(Q_eta[2,2], ssa(eta[2]-eta_d[2]))) +
              ca.mtimes((nu-nu_d).T, ca.mtimes(Q_nu, (nu-nu_d))) +
              ca.mtimes(s.T, ca.mtimes(Q_s, s)) +
              ca.mtimes(f_thr.T, ca.mtimes(R_f, f_thr)) +
@@ -308,8 +262,8 @@ for k in range(N):
         Xkj = ca.MX.sym('X_'+str(k)+'_'+str(j), X.size1())
         Xc.append(Xkj)
         w.append(Xkj)                                                       # Optimize at each collocation point
-        lbw.append([-np.inf,-np.inf,-np.inf, -1*knot2ms,-0.5*knot2ms,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are bounded by inequality constraint
-        ubw.append([np.inf,np.inf,np.inf, 5*knot2ms,0.5*knot2ms,np.inf, np.inf,np.inf,np.inf])
+        lbw.append([-np.inf,-np.inf,-np.inf, -2*knot2ms,-2*knot2ms,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are bounded by inequality constraint
+        ubw.append([np.inf,np.inf,np.inf, 8*knot2ms,2*knot2ms,np.inf, np.inf,np.inf,np.inf])
         w0.append([0,0,0, 0,0,0, 0,0,0])                                           # initial guess for the states
 
     # Loop over collocation points
@@ -327,8 +281,8 @@ for k in range(N):
             lbg.append([0,0,0, 0,0,0, 0,0,0])
             ubg.append([0,0,0, 0,0,0, 0,0,0])
             g.append(Uk[3:])
-            lbg.append([-alpha1_dot_max,-alpha2_dot_max])
-            ubg.append([alpha1_dot_max,alpha2_dot_max])
+            lbg.append([-delta_alpha1_max,-delta_alpha2_max])
+            ubg.append([ delta_alpha1_max, delta_alpha2_max])
         else:
             index_Uk_previous = len(w)-9
             fj1, fj2, qj = f(Xc[j-1],Uk,x_desired,w[index_Uk_previous][3:])
@@ -337,8 +291,8 @@ for k in range(N):
             lbg.append([0,0,0, 0,0,0, 0,0,0])          # -------------------------ARE THESE CORRECT?-------------------------------
             ubg.append([0,0,0, 0,0,0, 0,0,0])
             g.append(Uk[3:]-w[index_Uk_previous][3:])
-            lbg.append([-alpha1_dot_max,-alpha2_dot_max])
-            ubg.append([alpha1_dot_max,alpha2_dot_max])
+            lbg.append([-delta_alpha1_max,-delta_alpha2_max])
+            ubg.append([ delta_alpha1_max, delta_alpha2_max])
 
         # Add contribution to the end state
         Xk_end = Xk_end + D[j]*Xc[j-1]
@@ -363,7 +317,7 @@ for k in range(N):
     spatial_constraint = f_harbor(Xk)
     for i in range(S_b.shape[1]):
         g.append(spatial_constraint[:,i])
-        lbg.append([-np.inf,-np.inf,-np.inf,-np.inf,-np.inf,-np.inf])
+        lbg.append([-np.inf,-np.inf,-np.inf,-np.inf,-np.inf])
         ubg.append(b_s)
 
 # Concatenate vectors
@@ -379,7 +333,8 @@ ubg = np.concatenate(ubg)
 
 # Create an NLP solver
 prob = {'f': J, 'x': w, 'g': g}
-options = {'ipopt': {'max_iter':3000}}
+options = {'ipopt': {'max_iter':3000}, 'expand':True}
+# p_opts = {'expand':True}                # Replace MX with SX expressions in problem formulation to cut eval time on nlp_hess_l and nlp_jac_g
 solver = ca.nlpsol('solver', 'ipopt', prob, options)
 
 # Function to get x and u trajectories from w
@@ -392,67 +347,11 @@ x_opt = x_opt.full() # to numpy array
 u_opt = u_opt.full() # to numpy array
 
 # Plot the result
-tgrid = np.linspace(0, time_horizon, N+1)
-tgrid2 = np.linspace(0, time_horizon, N)
+plot_trajectories(x_opt, x_desired, u_opt, time_horizon)
 
-fig1, subplot1 = plt.subplots(3, sharex=True)
-subplot1[0].plot(tgrid, x_opt[0]-x_desired[0], '-', label="$x-x_d$ [m]")
-subplot1[0].legend(loc='upper right')
-# subplot1[0].set_ylim([0,200])
-subplot1[0].grid()
-subplot1[1].plot(tgrid, x_opt[1]-x_desired[1], '-', label="$y-y_d$ [m]")
-subplot1[1].legend(loc='upper right')
-# subplot1[1].set_ylim([-350,0])
-subplot1[1].grid()
-subplot1[2].plot(tgrid, x_opt[2]-x_desired[2], '-', label="$\\psi-\\psi_d$ [rad]")
-subplot1[2].legend(loc='upper right')
-# subplot1[2].set_ylim([-3.5,0])
-subplot1[2].grid()
-fig1.suptitle("Vessel pose error $\\boldsymbol{\\eta}-\\boldsymbol{\\eta}_d$")
-fig1.supxlabel("t")
-
-fig2, subplot2 = plt.subplots(3, sharex=True)
-subplot2[0].plot(tgrid, x_opt[3], '-', label="$u$ [m/s]")
-subplot2[0].legend(loc='upper right')
-subplot2[0].grid()
-subplot2[1].plot(tgrid, x_opt[4], '-', label="$v$ [m/s]")
-subplot2[1].legend(loc='upper right')
-subplot2[1].grid()
-subplot2[2].plot(tgrid, x_opt[5], '-',label="$r$ [rad/s]")
-subplot2[2].legend(loc='upper right')
-subplot2[2].grid()
-fig2.suptitle("Linear and angular velocity vector $\\boldsymbol{\\nu}$")
-fig2.supxlabel("t")
-
-fig3, subplot3 = plt.subplots(3, sharex=True)
-subplot3[0].step(tgrid2, u_opt[0], '-', label="$f_1$ [kN]")
-subplot3[0].legend(loc='upper right')
-subplot3[0].grid()
-subplot3[1].step(tgrid2, u_opt[1], '-', label="$f_2$ [kN]")
-subplot3[1].legend(loc='upper right')
-subplot3[1].grid()
-subplot3[2].step(tgrid2, u_opt[2], '-', label="$f_3$ [kN]")
-subplot3[2].legend(loc='upper right')
-subplot3[2].grid()
-fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
-fig3.supxlabel("t")
-
-fig4, subplot4 = plt.subplots(2, sharex=True)
-subplot4[0].step(tgrid2, u_opt[3], '-', label="$\\alpha_1$ [rad]")
-subplot4[0].legend(loc='upper right')
-subplot4[0].grid()
-subplot4[1].step(tgrid2, u_opt[4], '-', label="$\\alpha_2$ [rad]")
-subplot4[1].legend(loc='upper right')
-subplot4[1].grid()
-fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")
-fig4.supxlabel("t")
-
-plt.figure(5)
-plt.plot(tgrid, x_opt[6], '-')
-plt.plot(tgrid, x_opt[7], '-')
-plt.plot(tgrid, x_opt[8], '-')
-plt.xlabel('t')
-plt.legend(['s1','s2','s3'])
-plt.grid()
-
-plt.show()
+# harbor_constraint = np.array([[0,0],
+#                               [35,100],
+#                               [250,185],
+#                               [600,275],
+#                               [600,100]])
+# plot_NE_trajectory(x_opt, x_desired, u_opt, time_horizon, harbor_constraint)

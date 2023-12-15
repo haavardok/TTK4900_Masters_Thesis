@@ -1,0 +1,132 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from lib.helpers import*
+
+
+def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
+    '''
+    Plots the vessel pose error eta-eta_d, vessel velocities nu, thruster forces f, thruster angles alpha and
+    the slack variables on the thruster forces on five different figures.
+
+        Parameters:
+            x_optimal (nparray): An array containing the states eta, nu and s
+            x_optimal (nparray): An array containing the desired eta and nu values
+            u_optimal (nparray): An array containing the inputs f and alpha
+
+        Returns:
+            None
+    '''
+
+    # Make time grids for the state and input plots
+    tgrid = np.linspace(0, time_horizon, x_optimal.shape[1])
+    tgrid2 = np.linspace(0, time_horizon, u_optimal.shape[1])
+
+    # 3x1 plot of the vessel pose error eta-eta_d
+    fig1, subplot1 = plt.subplots(3, sharex=True)
+    subplot1[0].plot(tgrid, x_optimal[0]-x_desired[0], '-', label="$x-x_d$ [m]")
+    subplot1[0].legend(loc='upper right')
+    subplot1[0].grid()
+    subplot1[1].plot(tgrid, x_optimal[1]-x_desired[1], '-', label="$y-y_d$ [m]")
+    subplot1[1].legend(loc='upper right')
+    subplot1[1].grid()
+    subplot1[2].plot(tgrid, x_optimal[2]-x_desired[2], '-', label="$\\psi-\\psi_d$ [rad]")
+    subplot1[2].legend(loc='upper right')
+    subplot1[2].grid()
+    fig1.suptitle("Vessel pose error $\\boldsymbol{\\eta}-\\boldsymbol{\\eta}_d$")
+    fig1.supxlabel("t")
+
+    # 3x1 plot of the vessel's linear and angular velocities
+    fig2, subplot2 = plt.subplots(3, sharex=True)
+    subplot2[0].plot(tgrid, x_optimal[3], '-', label="$u$ [m/s]")
+    subplot2[0].legend(loc='upper right')
+    subplot2[0].grid()
+    subplot2[1].plot(tgrid, x_optimal[4], '-', label="$v$ [m/s]")
+    subplot2[1].legend(loc='upper right')
+    subplot2[1].grid()
+    subplot2[2].plot(tgrid, x_optimal[5], '-',label="$r$ [rad/s]")
+    subplot2[2].legend(loc='upper right')
+    subplot2[2].grid()
+    fig2.suptitle("Linear and angular velocity vector $\\boldsymbol{\\nu}$")
+    fig2.supxlabel("t")
+
+    # 3x1 plot of the thruster forces
+    fig3, subplot3 = plt.subplots(3, sharex=True)
+    subplot3[0].step(tgrid2, u_optimal[0], '-', label="$f_1$ [kN]")
+    subplot3[0].legend(loc='upper right')
+    subplot3[0].grid()
+    subplot3[1].step(tgrid2, u_optimal[1], '-', label="$f_2$ [kN]")
+    subplot3[1].legend(loc='upper right')
+    subplot3[1].grid()
+    subplot3[2].step(tgrid2, u_optimal[2], '-', label="$f_3$ [kN]")
+    subplot3[2].legend(loc='upper right')
+    subplot3[2].grid()
+    fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
+    fig3.supxlabel("t")
+
+    # 2x1 plot of the azimuth thrusters' angles
+    fig4, subplot4 = plt.subplots(2, sharex=True)
+    subplot4[0].plot(tgrid2, u_optimal[3]*rad2deg, '-', label="$\\alpha_1$ [rad]")
+    subplot4[0].legend(loc='upper right')
+    subplot4[0].grid()
+    subplot4[1].plot(tgrid2, u_optimal[4]*rad2deg, '-', label="$\\alpha_2$ [rad]")
+    subplot4[1].legend(loc='upper right')
+    subplot4[1].grid()
+    fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")
+    fig4.supxlabel("t")
+
+    # Plot of the slack variables
+    plt.figure(5)
+    plt.plot(tgrid, x_optimal[6], '-')
+    plt.plot(tgrid, x_optimal[7], '-')
+    plt.plot(tgrid, x_optimal[8], '-')
+    plt.legend(['s1','s2','s3'])
+    plt.title('Slack variables for the thruster forces')
+    plt.xlabel('t')
+    plt.grid()
+
+    # Show all plots
+    plt.show()
+
+def plot_NE_trajectory(spatial_constraint, vessel_boundary, vessel_init_pose, origin_translation):
+
+    # Set the limits for the plot
+    plt.xlim(0,450)
+    plt.ylim(0,1100)
+
+    # Set the axis names
+    plt.xlabel('East position [m]')
+    plt.ylabel('North position [m]')
+
+    # Adjust vessel to given vessel pose
+    vessel_boundary = np.dot(vessel_boundary, R(vessel_init_pose[2]).T)
+    safety_boundary = vessel_boundary * 1.1     # 10 % dilution
+
+    # Plot the spatial constraints
+    plt.plot(spatial_constraint[:,1]+origin_translation, spatial_constraint[:,0]+origin_translation, color='black')
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    # Plot the vessel with safety boundary
+    plt.plot(vessel_boundary[:,1]+vessel_init_pose[1]+origin_translation, vessel_boundary[:,0]+vessel_init_pose[0]+origin_translation, linestyle='-', color='black')
+    plt.plot(safety_boundary[:,1]+vessel_init_pose[1]+origin_translation, safety_boundary[:,0]+vessel_init_pose[0]+origin_translation, linestyle='--', color='black')
+
+    # Show plot
+    plt.show()
+
+
+
+# def plot_vessel(vessel_boundary, safety_boundary, heading):
+
+#     # Set the limits for the plot
+#     plt.xlim(0,450)
+#     plt.ylim(0,1100)
+
+#     # Set the axis names
+#     plt.xlabel('East position [m]')
+#     plt.ylabel('North position [m]')
+
+#     # Plot the spatial constraints
+#     # plt.scatter(spatial_constraint[:,1], spatial_constraint[:,0], color='red', marker='o')
+#     plt.plot(vessel_boundary[:,1], vessel_boundary[:,0], linestyle='-', color='black')
+#     plt.plot(safety_boundary[:,1], safety_boundary[:,0], linestyle='--', color='black')
+#     plt.gca().set_aspect('equal', adjustable='box')
+#     plt.show()

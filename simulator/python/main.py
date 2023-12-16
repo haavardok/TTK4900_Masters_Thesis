@@ -69,20 +69,20 @@ vessel_safety_margin = 1.1                          # safety margin M of set Sb 
 S_b = S_v * vessel_safety_margin                    # vertices for the convex set Sb in {b} defining the vessel boundary (10 % dilution of Sv)
 
 harbor_constraint = np.array([[0,0],                # vertices for the convex set in {n} defining the Trondheim harbor
-                              [-8,20],
+                              [-8,22],
                               [10,75],
-                              [900,250],
-                              [900,40],
+                              [750,250],
+                              [750,40],
                               [0,0]])
 
 A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
     [ 1.0000,  0.0000],
-    [-0.1929,  0.9812],
-    [ 0.0444, -0.9990],
+    [-0.2301,  0.9732],
+    [ 0.0533, -0.9986],
     [-0.9469,  0.3216],
     [-0.9398, -0.3417]])
 
-b_s = np.array([900, 71.6615, 0, 14.6499, 0])
+b_s = np.array([750, 70.6855, 0, 14.6499, 0])
 
 
 #######################################################################
@@ -175,8 +175,8 @@ X   = ca.vertcat(eta,nu,s)                          # NLP state vector
 U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
 X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
-x_init    = [600,125.75,-ca.pi, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
-x_desired = [200,40,0.5411318962347, 0,0,0]
+x_init    = [600,120,-ca.pi, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
+x_desired = [200,21.5,0.05328285155969, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max     = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
@@ -189,8 +189,8 @@ vessel = np.array([
             [ 38.1,  0.0],
             [ 21.8, -9.4],
             [-38.1, -9.4] ])
-plot_NE_trajectory(harbor_constraint, vessel, [600,125.75,math.pi], 0)
-plot_NE_trajectory(harbor_constraint, vessel, [200,40,0.5411318962347], 0)
+plot_endpoints_in_NE(harbor_constraint, vessel, x_init[:3], x_desired[:3], 100)
+plt.show()
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
@@ -348,10 +348,7 @@ u_opt = u_opt.full() # to numpy array
 
 # Plot the result
 plot_trajectories(x_opt, x_desired, u_opt, time_horizon)
+plot_NE_trajectory(x_opt, harbor_constraint, vessel, x_init[:3], 100)
 
-# harbor_constraint = np.array([[0,0],
-#                               [35,100],
-#                               [250,185],
-#                               [600,275],
-#                               [600,100]])
-# plot_NE_trajectory(x_opt, x_desired, u_opt, time_horizon, harbor_constraint)
+# Show all plots
+plt.show()

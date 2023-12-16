@@ -19,8 +19,8 @@ clc
 harbor_vertices_martinsen = [   0   0;      % Trondheim Hurtigruta harbor
                                -8  22;
                                10  75;
-                              900 250;
-                              900  40];
+                              750 250;
+                              750  40];
 
 % Using vert2lcon() to find the linear inequality constraints defining the
 % convex polygon in R^2 given its vertices.

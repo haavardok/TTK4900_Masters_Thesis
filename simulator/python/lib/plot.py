@@ -84,49 +84,81 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
     plt.xlabel('t')
     plt.grid()
 
-    # Show all plots
-    plt.show()
 
-def plot_NE_trajectory(spatial_constraint, vessel_boundary, vessel_init_pose, origin_translation):
+def plot_endpoints_in_NE(spatial_constraint, vessel_boundary, vessel_init_pose, vessel_desired_pose, origin_translation):
+
+    plt.figure(figsize=(8, 8))  # width, height in inches
 
     # Set the limits for the plot
     plt.xlim(0,450)
-    plt.ylim(0,1100)
-
-    # Set the axis names
-    plt.xlabel('East position [m]')
-    plt.ylabel('North position [m]')
+    plt.ylim(0,950)
 
     # Adjust vessel to given vessel pose
-    vessel_boundary = np.dot(vessel_boundary, R(vessel_init_pose[2]).T)
-    safety_boundary = vessel_boundary * 1.1     # 10 % dilution
+    vessel_boundary_init    = np.dot(vessel_boundary, R(vessel_init_pose[2]).T)
+    safety_boundary_init    = vessel_boundary_init * 1.1     # 10 % dilution
+    vessel_boundary_desired = np.dot(vessel_boundary, R(vessel_desired_pose[2]).T)
+    safety_boundary_desired = vessel_boundary_desired * 1.1     # 10 % dilution
 
     # Plot the spatial constraints
     plt.plot(spatial_constraint[:,1]+origin_translation, spatial_constraint[:,0]+origin_translation, color='black')
     plt.gca().set_aspect('equal', adjustable='box')
 
-    # Plot the vessel with safety boundary
-    plt.plot(vessel_boundary[:,1]+vessel_init_pose[1]+origin_translation, vessel_boundary[:,0]+vessel_init_pose[0]+origin_translation, linestyle='-', color='black')
-    plt.plot(safety_boundary[:,1]+vessel_init_pose[1]+origin_translation, safety_boundary[:,0]+vessel_init_pose[0]+origin_translation, linestyle='--', color='black')
+    # Plot the vessel with safety boundary in it's initial pose
+    plt.plot(vessel_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
+             vessel_boundary_init[:,0] + vessel_init_pose[0] + origin_translation, linestyle='-', color='green', label='Initial pose')
+    plt.plot(safety_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
+             safety_boundary_init[:,0] + vessel_init_pose[0]  +origin_translation, linestyle='--', color='green')
+    
+    # Plot the vessel with safety boundary in it's desired end point
+    plt.plot(vessel_boundary_desired[:,1] + vessel_desired_pose[1] + origin_translation,
+             vessel_boundary_desired[:,0] + vessel_desired_pose[0] + origin_translation, linestyle='-', color='blue', label='Desired pose')
+    plt.plot(safety_boundary_desired[:,1] + vessel_desired_pose[1] + origin_translation,
+             safety_boundary_desired[:,0] + vessel_desired_pose[0] + origin_translation, linestyle='--', color='blue')
 
-    # Show plot
-    plt.show()
+    # Set the axis names
+    plt.xlabel('East position [m]')
+    plt.ylabel('North position [m]')
+    plt.title("Vessel's initial and desired poses")
+    plt.legend(loc='upper right')
 
 
+def plot_NE_trajectory(x_optimal, spatial_constraint, vessel_boundary, vessel_init_pose, origin_translation):
 
-# def plot_vessel(vessel_boundary, safety_boundary, heading):
+    plt.figure(6)
+    plt.figure(figsize=(8, 8))  # width, height in inches
 
-#     # Set the limits for the plot
-#     plt.xlim(0,450)
-#     plt.ylim(0,1100)
+    # Set the limits for the plot
+    plt.xlim(0,450)
+    plt.ylim(0,950)
 
-#     # Set the axis names
-#     plt.xlabel('East position [m]')
-#     plt.ylabel('North position [m]')
+    # Adjust vessel boundaries to given vessel pose
+    vessel_boundary_init = np.dot(vessel_boundary, R(vessel_init_pose[2]).T)
+    safety_boundary_init = vessel_boundary_init * 1.1     # 10 % dilution
 
-#     # Plot the spatial constraints
-#     # plt.scatter(spatial_constraint[:,1], spatial_constraint[:,0], color='red', marker='o')
-#     plt.plot(vessel_boundary[:,1], vessel_boundary[:,0], linestyle='-', color='black')
-#     plt.plot(safety_boundary[:,1], safety_boundary[:,0], linestyle='--', color='black')
-#     plt.gca().set_aspect('equal', adjustable='box')
-#     plt.show()
+    # Plot the spatial constraints
+    plt.plot(spatial_constraint[:,1]+origin_translation, spatial_constraint[:,0]+origin_translation, color='black')
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    # Plot the initial pose
+    plt.plot(vessel_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
+             vessel_boundary_init[:,0] + vessel_init_pose[0] + origin_translation, linestyle='-', color='green', label='Initial pose')
+    plt.plot(safety_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
+             safety_boundary_init[:,0] + vessel_init_pose[0]  +origin_translation, linestyle='--', color='green')
+    
+    # Adjust vessel boundaries to given vessel pose
+    vessel_boundary_final = np.dot(vessel_boundary, R(x_optimal[3,30]).T)
+    safety_boundary_final = vessel_boundary_final * 1.1     # 10 % dilution
+
+    # Plot the final pose
+    plt.plot(vessel_boundary_final[:,1] + x_optimal[1,30] + origin_translation,
+             vessel_boundary_final[:,0] + x_optimal[0,30] + origin_translation, linestyle='-', color='blue', label='Final pose')
+    plt.plot(safety_boundary_final[:,1] + x_optimal[1,30] + origin_translation,
+             safety_boundary_final[:,0] + x_optimal[0,30] + origin_translation, linestyle='--', color='blue')
+
+    plt.plot(x_optimal[1]+origin_translation, x_optimal[0]+origin_translation, '-')
+
+    # Set the axis names
+    plt.xlabel('East position [m]')
+    plt.ylabel('North position [m]')
+    plt.title("Vessel trajectory")
+    plt.legend(loc='upper right')

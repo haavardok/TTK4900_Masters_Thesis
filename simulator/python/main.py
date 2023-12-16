@@ -56,10 +56,10 @@ S_v = np.array([                                    # vertices for the convex se
 
 # Weighting matrices
 Q_eta = np.diag([1e4,1e4,1e7])                      # weighting matrix for position and Euler angle vector eta
-Q_nu = np.diag([1,1,1])                             # weighting matrix for linear and angular velocity vector nu
-Q_s = np.diag([1e3,1e3,1e3])                        # weighting matrix for the slack variables
+Q_nu = np.diag([0,1,1])                             # weighting matrix for linear and angular velocity vector nu
+Q_s = np.diag([1,1,1])                        # weighting matrix for the slack variables
 R_f = np.diag([1e-7,1e-7,1e-7])                     # weighting matrix for force vector f
-R_alpha = np.diag([1e-2,1e-2])                      # weighting matrix for azimuth thruster turn rate
+R_alpha = np.diag([1e-7,1e-7])                      # weighting matrix for azimuth thruster turn rate
 W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-3                                      # small constant to avoid division by 0
 rho = 1                                             # thruster weighting of maneuverability
@@ -262,8 +262,8 @@ for k in range(N):
         Xkj = ca.MX.sym('X_'+str(k)+'_'+str(j), X.size1())
         Xc.append(Xkj)
         w.append(Xkj)                                                       # Optimize at each collocation point
-        lbw.append([-np.inf,-np.inf,-np.inf, -2*knot2ms,-2*knot2ms,-np.inf, -np.inf,-np.inf,-np.inf])      # Vessel states are bounded by inequality constraint
-        ubw.append([np.inf,np.inf,np.inf, 8*knot2ms,2*knot2ms,np.inf, np.inf,np.inf,np.inf])
+        lbw.append([-ca.inf,-ca.inf,-ca.inf, -2*knot2ms,-2*knot2ms,-ca.inf, -ca.inf,-ca.inf,-ca.inf])      # Vessel states are bounded by inequality constraint
+        ubw.append([ca.inf,ca.inf,ca.inf, 8*knot2ms,2*knot2ms,ca.inf, ca.inf,ca.inf,ca.inf])
         w0.append([0,0,0, 0,0,0, 0,0,0])                                           # initial guess for the states
 
     # Loop over collocation points
@@ -303,8 +303,8 @@ for k in range(N):
     # New NLP variable for state at end of interval
     Xk = ca.MX.sym('X_' + str(k+1), X.size1())
     w.append(Xk)
-    lbw.append([-np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf, -np.inf,-np.inf,-np.inf])
-    ubw.append([np.inf,np.inf,np.inf, np.inf,np.inf,np.inf, np.inf,np.inf,np.inf])
+    lbw.append([-ca.inf,-ca.inf,-ca.inf, -2*knot2ms,-2*knot2ms,-ca.inf, -ca.inf,-ca.inf,-ca.inf])
+    ubw.append([ca.inf,ca.inf,ca.inf, 8*knot2ms,2*knot2ms,ca.inf, ca.inf,ca.inf,ca.inf])
     w0.append([0,0,0, 0,0,0, 0,0,0])               # -------------------------THIS MAY BE INCORRECT-------------------------------
     x_plot.append(Xk)
 
@@ -317,7 +317,7 @@ for k in range(N):
     spatial_constraint = f_harbor(Xk)
     for i in range(S_b.shape[1]):
         g.append(spatial_constraint[:,i])
-        lbg.append([-np.inf,-np.inf,-np.inf,-np.inf,-np.inf])
+        lbg.append([-ca.inf,-ca.inf,-ca.inf,-ca.inf,-ca.inf])
         ubg.append(b_s)
 
 # Concatenate vectors
@@ -337,18 +337,21 @@ options = {'ipopt': {'max_iter':3000}, 'expand':True}
 # p_opts = {'expand':True}                # Replace MX with SX expressions in problem formulation to cut eval time on nlp_hess_l and nlp_jac_g
 solver = ca.nlpsol('solver', 'ipopt', prob, options)
 
-# Function to get x and u trajectories from w
-trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
+
 
 # Solve the NLP
 sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
+# Function to get x and u trajectories from w
+trajectories = ca.Function('trajectories', [w], [x_plot, u_plot], ['w'], ['x', 'u'])
 x_opt, u_opt = trajectories(sol['x'])
 x_opt = x_opt.full() # to numpy array
 u_opt = u_opt.full() # to numpy array
 
 # Plot the result
+move_origin_of_plot = 100               # moving origin in North and East to better see plot
+plotting_times = [10,15,21]
 plot_trajectories(x_opt, x_desired, u_opt, time_horizon)
-plot_NE_trajectory(x_opt, harbor_constraint, vessel, x_init[:3], 100)
+plot_NE_trajectory(x_opt, harbor_constraint, vessel, move_origin_of_plot, plotting_times)
 
 # Show all plots
 plt.show()

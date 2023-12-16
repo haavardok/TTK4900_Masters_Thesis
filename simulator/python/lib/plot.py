@@ -51,13 +51,13 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
 
     # 3x1 plot of the thruster forces
     fig3, subplot3 = plt.subplots(3, sharex=True)
-    subplot3[0].step(tgrid2, u_optimal[0], '-', label="$f_1$ [kN]")
+    subplot3[0].step(tgrid2, u_optimal[0]/1000, '-', label="$f_1$ [kN]")
     subplot3[0].legend(loc='upper right')
     subplot3[0].grid()
-    subplot3[1].step(tgrid2, u_optimal[1], '-', label="$f_2$ [kN]")
+    subplot3[1].step(tgrid2, u_optimal[1]/1000, '-', label="$f_2$ [kN]")
     subplot3[1].legend(loc='upper right')
     subplot3[1].grid()
-    subplot3[2].step(tgrid2, u_optimal[2], '-', label="$f_3$ [kN]")
+    subplot3[2].step(tgrid2, u_optimal[2]/1000, '-', label="$f_3$ [kN]")
     subplot3[2].legend(loc='upper right')
     subplot3[2].grid()
     fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
@@ -65,10 +65,10 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
 
     # 2x1 plot of the azimuth thrusters' angles
     fig4, subplot4 = plt.subplots(2, sharex=True)
-    subplot4[0].plot(tgrid2, u_optimal[3]*rad2deg, '-', label="$\\alpha_1$ [rad]")
+    subplot4[0].step(tgrid2, u_optimal[3]*rad2deg, '-', label="$\\alpha_1$ [rad]")
     subplot4[0].legend(loc='upper right')
     subplot4[0].grid()
-    subplot4[1].plot(tgrid2, u_optimal[4]*rad2deg, '-', label="$\\alpha_2$ [rad]")
+    subplot4[1].step(tgrid2, u_optimal[4]*rad2deg, '-', label="$\\alpha_2$ [rad]")
     subplot4[1].legend(loc='upper right')
     subplot4[1].grid()
     fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")
@@ -122,42 +122,73 @@ def plot_endpoints_in_NE(spatial_constraint, vessel_boundary, vessel_init_pose, 
     plt.legend(loc='upper right')
 
 
-def plot_NE_trajectory(x_optimal, spatial_constraint, vessel_boundary, vessel_init_pose, origin_translation):
+def plot_NE_trajectory(x_optimal, spatial_constraint, vessel_boundary, origin_translation, plotting_times):
 
-    plt.figure(6)
     plt.figure(figsize=(8, 8))  # width, height in inches
 
     # Set the limits for the plot
     plt.xlim(0,450)
     plt.ylim(0,950)
 
-    # Adjust vessel boundaries to given vessel pose
-    vessel_boundary_init = np.dot(vessel_boundary, R(vessel_init_pose[2]).T)
-    safety_boundary_init = vessel_boundary_init * 1.1     # 10 % dilution
-
     # Plot the spatial constraints
     plt.plot(spatial_constraint[:,1]+origin_translation, spatial_constraint[:,0]+origin_translation, color='black')
     plt.gca().set_aspect('equal', adjustable='box')
 
+    # for i in range(len(x_optimal[0])):
+    #     if i==0:
+    #         # Plot the initial pose
+    #         vessel_boundary_initial = np.dot(vessel_boundary, R(x_optimal[2,i]).T)
+    #         safety_boundary_initial = vessel_boundary_initial * 1.1     # 10 % dilution
+    #         plt.plot(vessel_boundary_initial[:,1] + x_optimal[1,i] + origin_translation,
+    #                  vessel_boundary_initial[:,0] + x_optimal[0,i] + origin_translation, linestyle='-', color='green', label='Initial pose')
+    #         plt.plot(safety_boundary_initial[:,1] + x_optimal[1,i] + origin_translation,
+    #                  safety_boundary_initial[:,0] + x_optimal[0,i] + origin_translation, linestyle='--', color='green')
+    #     elif i==len(x_optimal[0])-1:
+    #         # Plot the final pose
+    #         vessel_boundary_final = np.dot(vessel_boundary, R(x_optimal[2,i]).T)
+    #         safety_boundary_final = vessel_boundary_final * 1.1     # 10 % dilution
+    #         plt.plot(vessel_boundary_final[:,1] + x_optimal[1,i] + origin_translation,
+    #                  vessel_boundary_final[:,0] + x_optimal[0,i] + origin_translation, linestyle='-', color='blue', label='Final pose')
+    #         plt.plot(safety_boundary_final[:,1] + x_optimal[1,i] + origin_translation,
+    #                  safety_boundary_final[:,0] + x_optimal[0,i] + origin_translation, linestyle='--', color='blue')
+    #     else:
+    #         # Plot poses on the trajectory
+    #         vessel_boundary_underways = np.dot(vessel_boundary, R(x_optimal[2,i]).T)
+    #         safety_boundary_underways = vessel_boundary_underways * 1.1     # 10 % dilution
+    #         plt.plot(vessel_boundary_underways[:,1] + x_optimal[1,i] + origin_translation,
+    #                  vessel_boundary_underways[:,0] + x_optimal[0,i] + origin_translation, linestyle='-', color='black')
+    #         plt.plot(safety_boundary_underways[:,1] + x_optimal[1,i] + origin_translation,
+    #                  safety_boundary_underways[:,0] + x_optimal[0,i] + origin_translation, linestyle='--', color='black')
+
     # Plot the initial pose
-    plt.plot(vessel_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
-             vessel_boundary_init[:,0] + vessel_init_pose[0] + origin_translation, linestyle='-', color='green', label='Initial pose')
-    plt.plot(safety_boundary_init[:,1] + vessel_init_pose[1] + origin_translation,
-             safety_boundary_init[:,0] + vessel_init_pose[0]  +origin_translation, linestyle='--', color='green')
+    vessel_boundary_initial = np.dot(vessel_boundary, R(x_optimal[2,0]).T)
+    safety_boundary_initial = vessel_boundary_initial * 1.1     # 10 % dilution
+    plt.plot(vessel_boundary_initial[:,1] + x_optimal[1,0] + origin_translation,
+             vessel_boundary_initial[:,0] + x_optimal[0,0] + origin_translation, linestyle='-', color='green', label='Initial pose')
+    plt.plot(safety_boundary_initial[:,1] + x_optimal[1,0] + origin_translation,
+             safety_boundary_initial[:,0] + x_optimal[0,0] + origin_translation, linestyle='--', color='green')
     
-    # Adjust vessel boundaries to given vessel pose
-    vessel_boundary_final = np.dot(vessel_boundary, R(x_optimal[3,30]).T)
-    safety_boundary_final = vessel_boundary_final * 1.1     # 10 % dilution
-
     # Plot the final pose
-    plt.plot(vessel_boundary_final[:,1] + x_optimal[1,30] + origin_translation,
-             vessel_boundary_final[:,0] + x_optimal[0,30] + origin_translation, linestyle='-', color='blue', label='Final pose')
-    plt.plot(safety_boundary_final[:,1] + x_optimal[1,30] + origin_translation,
-             safety_boundary_final[:,0] + x_optimal[0,30] + origin_translation, linestyle='--', color='blue')
+    vessel_boundary_final = np.dot(vessel_boundary, R(x_optimal[2,len(x_optimal[0])-1]).T)
+    safety_boundary_final = vessel_boundary_final * 1.1     # 10 % dilution
+    plt.plot(vessel_boundary_final[:,1] + x_optimal[1,len(x_optimal[0])-1] + origin_translation,
+             vessel_boundary_final[:,0] + x_optimal[0,len(x_optimal[0])-1] + origin_translation, linestyle='-', color='blue', label='Final pose')
+    plt.plot(safety_boundary_final[:,1] + x_optimal[1,len(x_optimal[0])-1] + origin_translation,
+             safety_boundary_final[:,0] + x_optimal[0,len(x_optimal[0])-1] + origin_translation, linestyle='--', color='blue')
 
+    for i in plotting_times:
+        # Plot poses on the trajectory
+        vessel_boundary_underways = np.dot(vessel_boundary, R(x_optimal[2,i]).T)
+        safety_boundary_underways = vessel_boundary_underways * 1.1     # 10 % dilution
+        plt.plot(vessel_boundary_underways[:,1] + x_optimal[1,i] + origin_translation,
+                 vessel_boundary_underways[:,0] + x_optimal[0,i] + origin_translation, linestyle='-', color='black')
+        plt.plot(safety_boundary_underways[:,1] + x_optimal[1,i] + origin_translation,
+                 safety_boundary_underways[:,0] + x_optimal[0,i] + origin_translation, linestyle='--', color='black')
+
+    # Plot the trajectory between the initial and the final pose
     plt.plot(x_optimal[1]+origin_translation, x_optimal[0]+origin_translation, '-')
 
-    # Set the axis names
+    # Set names on axes
     plt.xlabel('East position [m]')
     plt.ylabel('North position [m]')
     plt.title("Vessel trajectory")

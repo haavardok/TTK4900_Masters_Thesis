@@ -21,8 +21,8 @@ alpha3 = ca.pi/2                                  # bow tunnel thruster constant
 f1_min = -1/30 * m; f1_max = 1/30 * m               # azimuth thruster 1 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f2_min = -1/30 * m; f2_max = 1/30 * m               # azimuth thruster 2 force saturation (kN) -------------------------------CHECK THIS-------------------------------------------
 f3_min = -1/60 * m; f3_max = 1/60 * m               # bow tunnel thruster force saturation (kN) ------------------------------CHECK THIS-------------------------------------------
-alpha1_min = -170*ca.pi/180; alpha1_max = 170*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
-alpha2_min = -170*ca.pi/180; alpha2_max = 170*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
+alpha1_min = -260*ca.pi/180; alpha1_max = 80*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
+alpha2_min = -80*ca.pi/180; alpha2_max = 260*ca.pi/180                 # azimuth thruster 1 angle saturation (rad)
 alpha1_dot_max = (360*ca.pi/180)/30               # azimuth thruster max turnaround time (rad/s) ------------------------------CHECK THIS-------------------------------------------
 alpha2_dot_max = (360*ca.pi/180)/30
 delta_alpha1_max = alpha1_dot_max * 10              # discrete time azimuth thruster turnaround time (cont. time * step size)
@@ -55,11 +55,11 @@ S_v = np.array([                                    # vertices for the convex se
 #######################################################################
 
 # Weighting matrices
-Q_eta = np.diag([1e4,1e4,1e7])                      # weighting matrix for position and Euler angle vector eta
-Q_nu = np.diag([0,1,1])                             # weighting matrix for linear and angular velocity vector nu
-Q_s = np.diag([1,1,1])                        # weighting matrix for the slack variables
+Q_eta = np.diag([5,5,6000])                      # weighting matrix for position and Euler angle vector eta
+Q_nu = np.diag([1e-2,1,1])                             # weighting matrix for linear and angular velocity vector nu
+Q_s = np.diag([1e3,1e3,1e3])                        # weighting matrix for the slack variables
 R_f = np.diag([1e-7,1e-7,1e-7])                     # weighting matrix for force vector f
-R_alpha = np.diag([1e-7,1e-7])                      # weighting matrix for azimuth thruster turn rate
+R_alpha = np.diag([1e-5,1e-5])                      # weighting matrix for azimuth thruster turn rate
 W = np.diag([1,1,1])                                # thruster weighting matrix
 epsilon = 1e-3                                      # small constant to avoid division by 0
 rho = 1                                             # thruster weighting of maneuverability
@@ -176,7 +176,7 @@ U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
 X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
 x_init    = [600,120,-ca.pi, 0,0,0, 0,0,0]      # x(0)=500, y(0)=175, psi(0)=-pi/2, u(0)=0, v(0)=0, r(0)=0, s1(0)=0, s2(0)=0, s3(0)=0
-x_desired = [200,21.5,0.05328285155969, 0,0,0]
+x_desired = [200,22.5,0.05328285155969, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max     = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
@@ -189,8 +189,8 @@ vessel = np.array([
             [ 38.1,  0.0],
             [ 21.8, -9.4],
             [-38.1, -9.4] ])
-plot_endpoints_in_NE(harbor_constraint, vessel, x_init[:3], x_desired[:3], 100)
-plt.show()
+# plot_endpoints_in_NE(harbor_constraint, vessel, x_init[:3], x_desired[:3], 100)
+# plt.show()
 
 # Model equations
 eta_dot = ca.mtimes(J_rot(psi), nu)
@@ -248,6 +248,14 @@ x_plot.append(Xk)
 
 # Formulate the NLP
 for k in range(N):
+    if k==0:
+        # New NLP variable for the control
+        Uk = ca.MX.sym('U_' + str(k), U.size1())
+        w.append(Uk)
+        lbw.append(u_init)
+        ubw.append(u_init)
+        w0.append(u_init)   # initial guess for the inputs
+        u_plot.append(Uk)
     # New NLP variable for the control
     Uk = ca.MX.sym('U_' + str(k), U.size1())
     w.append(Uk)

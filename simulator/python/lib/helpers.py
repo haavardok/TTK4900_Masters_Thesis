@@ -109,8 +109,8 @@ def T(alpha):
             T_thr (ndarray): Thruster configuration matrix
     '''
     
-    lx1 = -35; ly1 = 7                                  # azimuth thruster 1 position (m)
-    lx2 = -35; ly2 = -7                                 # azimuth thruster 2 position (m)
+    lx1 = -35; ly1 = -7                                  # azimuth thruster 1 position (m)
+    lx2 = -35; ly2 = 7                                 # azimuth thruster 2 position (m)
     lx3 = 35;                                           # bow tunnel thruster position (m)
 
     calpha1 = ca.cos(alpha[0])

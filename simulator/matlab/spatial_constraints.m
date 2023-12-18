@@ -22,7 +22,15 @@ harbor_vertices_martinsen = [   0   0;      % Trondheim Hurtigruta harbor
                               750 250;
                               750  40];
 
+harbor_vertices_hareid = [      0   0;      % Trondheim Hurtigruta harbor
+                             -218  54;
+                             -475 402;
+                             -139 638;
+                              120 348];
+
 % Using vert2lcon() to find the linear inequality constraints defining the
 % convex polygon in R^2 given its vertices.
 
 [As,bs] = vert2lcon(harbor_vertices_martinsen)
+[As_Hareid,bs_Hareid] = vert2lcon(harbor_vertices_hareid)
+

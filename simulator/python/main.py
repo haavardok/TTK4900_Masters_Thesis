@@ -193,7 +193,7 @@ X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
 # x_init    = [600,120,-ca.pi, 0,0,0, 0,0,0]          # Hurtigruten terminal
 # x_desired = [200,22.5,0.05328285155969, 0,0,0]
-x_init    = [-100,500,5*ca.pi/4, 0,0,0, 0,0,0]            # Hareid harbor
+x_init    = [-100,500,-3*ca.pi/4, 0,0,0, 0,0,0]            # Hareid harbor
 x_desired = [-296.5,178,-0.933, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
@@ -207,7 +207,7 @@ vessel = np.array([
             [ 38.1,  0.0],
             [ 21.8, -9.4],
             [-38.1, -9.4] ])
-plot_endpoints_in_NE(harbor_constraint, vessel, x_init[:3], x_desired[:3], 100)
+plot_endpoints_in_NE(harbor_constraint, vessel, x_init[:3], x_desired[:3], 0)
 plt.show()
 
 # Model equations
@@ -374,7 +374,7 @@ x_opt = x_opt.full() # to numpy array
 u_opt = u_opt.full() # to numpy array
 
 # Plot the result
-move_origin_of_plot = 100               # moving origin in North and East to better see plot
+move_origin_of_plot = 0               # moving origin in North and East to better see plot
 plotting_times = [10,15,21]
 plot_trajectories(x_opt, x_desired, u_opt, time_horizon)
 plot_NE_trajectory(x_opt, harbor_constraint, vessel, move_origin_of_plot, plotting_times)

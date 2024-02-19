@@ -29,10 +29,10 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
     subplot1[1].plot(tgrid, x_optimal[1]-x_desired[1], '-', label="$y-y_d$ [m]")
     subplot1[1].legend(loc='upper right')
     subplot1[1].grid()
-    subplot1[2].plot(tgrid, x_optimal[2]-x_desired[2], '-', label="$\\psi-\\psi_d$ [rad]")
+    subplot1[2].plot(tgrid, x_optimal[2]-x_desired[2], '-', label=r"$\psi-\psi_d$ [rad]")
     subplot1[2].legend(loc='lower right')
     subplot1[2].grid()
-    fig1.suptitle("Vessel pose error $\\boldsymbol{\\eta}-\\boldsymbol{\\eta}_d$")
+    fig1.suptitle(r"Vessel pose error $\mathbf{\eta}-\mathbf{\eta}_d$")
     fig1.supxlabel("t")
 
     # 3x1 plot of the vessel's linear and angular velocities
@@ -46,7 +46,7 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
     subplot2[2].plot(tgrid, x_optimal[5], '-',label="$r$ [rad/s]")
     subplot2[2].legend(loc='upper right')
     subplot2[2].grid()
-    fig2.suptitle("Linear and angular velocity vector $\\boldsymbol{\\nu}$")
+    fig2.suptitle(r"Linear and angular velocity vector $\mathbf{\nu}$")
     fig2.supxlabel("t")
 
     # 3x1 plot of the thruster forces
@@ -66,22 +66,22 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
     subplot3[2].step(tgrid2, u_optimal[2]/1000, '-', label="$f_3$ [kN]")
     subplot3[2].legend(loc='upper right')
     subplot3[2].grid()
-    fig3.suptitle("Thruster forces $\\boldsymbol{f}$")
+    fig3.suptitle(r"Thruster forces $\mathbf{f}$")
     fig3.supxlabel("t")
 
     # 2x1 plot of the azimuth thrusters' angles
     fig4, subplot4 = plt.subplots(2, sharex=True)
     subplot4[0].axhline(y=-260, color='red', linestyle='-')
     subplot4[0].axhline(y=80, color='red', linestyle='-')
-    subplot4[0].step(tgrid2, u_optimal[3]*rad2deg, '-', label="$\\alpha_1$ [deg]")
+    subplot4[0].step(tgrid2, u_optimal[3]*rad2deg, '-', label=r"$\alpha_1$ [deg]")
     subplot4[0].legend(loc='lower right')
     subplot4[0].grid()
     subplot4[1].axhline(y=260, color='red', linestyle='-')
     subplot4[1].axhline(y=-80, color='red', linestyle='-')
-    subplot4[1].step(tgrid2, u_optimal[4]*rad2deg, '-', label="$\\alpha_2$ [deg]")
+    subplot4[1].step(tgrid2, u_optimal[4]*rad2deg, '-', label=r"$\alpha_2$ [deg]")
     subplot4[1].legend(loc='upper right')
     subplot4[1].grid()
-    fig4.suptitle("Thruster angles $\\boldsymbol{\\alpha}$")
+    fig4.suptitle(r"Thruster angles $\mathbf{\alpha}$")
     fig4.supxlabel("t")
 
     # Plot of the slack variables
@@ -90,8 +90,8 @@ def plot_trajectories(x_optimal, x_desired, u_optimal, time_horizon):
     plt.plot(tgrid, x_optimal[7], '-')
     plt.plot(tgrid, x_optimal[8], '-')
     plt.legend(['s1','s2','s3'])
-    plt.title('Slack variables for the thruster forces')
-    plt.xlabel('t')
+    plt.title(r"Slack variables for the thruster forces $\mathbf{s}$")
+    plt.xlabel("t")
     plt.grid()
 
 

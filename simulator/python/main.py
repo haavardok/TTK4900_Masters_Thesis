@@ -68,37 +68,37 @@ vessel_safety_margin = 1.1                          # safety margin M of set Sb 
 
 S_b = S_v * vessel_safety_margin                    # vertices for the convex set Sb in {b} defining the vessel boundary (10 % dilution of Sv)
 
-# harbor_constraint = np.array([[0,0],                # vertices for the convex set in {n} defining the Trondheim harbor
-#                               [-8,22],              # Hurtigruten terminal
-#                               [10,75],
-#                               [750,250],
-#                               [750,40],
-#                               [0,0]])
-
 harbor_constraint = np.array([[0,0],                # vertices for the convex set in {n} defining the Trondheim harbor
-                              [-218,54],              # Hareid harbor
-                              [-475,402],
-                              [-139,638],
-                              [120,348],
+                              [-8,22],              # Hurtigruten terminal
+                              [10,75],
+                              [750,250],
+                              [750,40],
                               [0,0]])
 
-# A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
-#     [ 1.0000,  0.0000],
-#     [-0.2301,  0.9732],
-#     [ 0.0533, -0.9986],
-#     [-0.9469,  0.3216],
-#     [-0.9398, -0.3417]])
+# harbor_constraint = np.array([[0,0],                # vertices for the convex set in {n} defining the Trondheim harbor
+#                               [-218,54],              # Hareid harbor
+#                               [-475,402],
+#                               [-139,638],
+#                               [120,348],
+#                               [0,0]])
 
-# b_s = np.array([750, 70.6855, 0, 14.6499, 0])
+A_s = np.array([                                    # spatial constraints for convex set (Hurtigruta terminal)
+    [ 1.0000,  0.0000],
+    [-0.2301,  0.9732],
+    [ 0.0533, -0.9986],
+    [-0.9469,  0.3216],
+    [-0.9398, -0.3417]])
 
-A_s = np.array([                                    # spatial constraints for convex set (Hareid harbor)
-    [-0.2404, -0.9707],
-    [ 0.9454, -0.3260],
-    [-0.8044, -0.5941],
-    [ 0.7458,  0.6661],
-    [-0.5748, -0.8183]])
+b_s = np.array([750, 70.6855, 0, 14.6499, 0])
 
-b_s = np.array([0, 0, 143.2832, 321.3106, 601.9782])
+# A_s = np.array([                                    # spatial constraints for convex set (Hareid harbor)
+#     [-0.2404, -0.9707],
+#     [ 0.9454, -0.3260],
+#     [-0.8044, -0.5941],
+#     [ 0.7458,  0.6661],
+#     [-0.5748, -0.8183]])
+
+# b_s = np.array([0, 0, 143.2832, 321.3106, 601.9782])
 
 
 #######################################################################
@@ -146,7 +146,7 @@ for j in range(d+1):
 #######################################################################
 
 # Time horizon
-time_horizon = 300
+time_horizon = 600
 
 # Declare model variables
 x   = ca.SX.sym('x')
@@ -191,10 +191,10 @@ X   = ca.vertcat(eta,nu,s)                          # NLP state vector
 U   = ca.vertcat(f_thr,alpha)                       # NLP input vector
 X_d = ca.vertcat(eta_d,nu_d)                        # NLP desired state vector
 
-# x_init    = [600,120,-ca.pi, 0,0,0, 0,0,0]          # Hurtigruten terminal
-# x_desired = [200,22.5,0.05328285155969, 0,0,0]
-x_init    = [-100,500,-3*ca.pi/4, 0,0,0, 0,0,0]            # Hareid harbor
-x_desired = [-296.5,178,-0.933, 0,0,0]
+x_init    = [600,120,-ca.pi, 0,0,0, 0,0,0]          # Hurtigruten terminal
+x_desired = [200,22.5,0.05328285155969, 0,0,0]
+# x_init    = [-100,500,-3*ca.pi/4, 0,0,0, 0,0,0]            # Hareid harbor
+# x_desired = [-296.5,178,-0.933, 0,0,0]
 u_init    = [0,0,0, 0,0]
 u_min     = [f1_min,f2_min,f3_min, alpha1_min,alpha2_min]
 u_max     = [f1_max,f2_max,f3_max, alpha1_max,alpha2_max]
@@ -239,7 +239,7 @@ spatial_constraints = A_s @ ((R_rot(psi) @ S_b).T + ca.repmat(ca.horzcat(x, y), 
 f_harbor = ca.Function('f_harbor', [X], [spatial_constraints], ['X'], ['spatial_constraints'])
 
 # Control discretization
-N = 30                  # number of control intervals
+N = 60                  # number of control intervals
 h = time_horizon / N    # step time
 
 # NLP formulation: parameters we wish to minimize the cost w.r.t.
@@ -359,7 +359,19 @@ ubg = np.concatenate(ubg)
 
 # Create an NLP solver
 prob = {'f': J, 'x': w, 'g': g}
-options = {'ipopt': {'max_iter':3000}, 'expand':True}
+# options = {'ipopt': {'max_iter':3000}, 'expand':True}
+
+options={"ipopt": {"hsllib": "/usr/local/lib/libcoinhsl.so",
+                   "print_level": 5,
+                   "max_cpu_time": 100, # maybe used as strict cutoff for MPC? \Delta t = 10 s?
+                   "hessian_approximation": "exact", # limited-memory
+                   "linear_solver": "ma27", # "ma27"
+                   "warm_start_init_point": "no",
+                   "warm_start_entire_iterate": "no",
+                   "mu_target": 1e-3,
+                  },
+         "expand":True
+}
 # p_opts = {'expand':True}                # Replace MX with SX expressions in problem formulation to cut eval time on nlp_hess_l and nlp_jac_g
 solver = ca.nlpsol('solver', 'ipopt', prob, options)
 
